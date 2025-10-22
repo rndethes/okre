@@ -1,0 +1,250 @@
+<div class="header bg-dark-primary pb-6">
+  <div class="container-fluid">
+    <div class="flash-data" data-flashdata="<?= $this->session->flashdata('flashPj'); ?>"></div>
+    <?php if ($this->session->flashdata('flashPj')) : ?>
+    <?php endif; ?>
+    <div class="header-body">
+      <div class="row align-items-center py-4">
+        <div class="col-lg-6 col-7">
+          <h6 class="h2 text-white d-inline-block mb-0">Document</h6>
+          <nav aria-label="breadcrumb" class="d-none d-md-inline-block ml-md-4">
+            <ol class="breadcrumb breadcrumb-links breadcrumb-dark">
+              <li class="breadcrumb-item"><a href="#"><i class="fas fa-home"></i></a></li>
+              <li class="breadcrumb-item"><a href="#">Dashboards</a></li>
+              <li class="breadcrumb-item active" aria-current="page">Document</li>
+            </ol>
+          </nav>
+        </div>
+      </div>
+      <!-- Card stats -->
+    </div>
+  </div>
+</div>
+<!-- Page content -->
+<div class="container-fluid mt--6">
+  <div class="row">
+    <div class="col-xl-12">
+      
+    </div>
+  </div>
+</div>
+
+  <div class="container-fluid">
+    <div class="row">   
+      <div class="col-xl-12"> 
+        <div class="card bg-gradient-default">
+          <div class="card-body">
+            <h3 class="card-title text-white">Upload Document</h3>
+            <blockquote class="blockquote text-white mb-0">
+                <p>Upload Document Disini.</p>
+                <a href="<?= base_url("document/documentinput") ?>" type="button" class="btn btn-secondary rounded-pill">
+                  Upload Document
+                </a>
+
+              
+                
+            </blockquote>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+<!-- BATAASSSS -->
+
+
+<div class="container-fluid">
+  <div class="row">   
+    <div class="col-xl-12"> 
+      <div class="card">
+        <div class="card-header border-2 mb-4">
+          <div class="row align-items-center">
+            <div class="col">
+              <h2 class="mb-0" style="padding-left: 15px;">Document</h2>
+              <?php $role_id = $this->session->userdata('role_id') ?>
+
+
+              <div class="table-responsive">
+                <div>
+                    <table class="table align-items-center">
+                        <thead class="thead-light">
+                            <tr>
+                                <th scope="col" class="sort" data-sort="name">Nama Document</th>
+                                <th scope="col" class="sort" data-sort="budget">Type Document</th>
+                                <th scope="col" class="sort" data-sort="status">Space | Project</th>
+                                <th scope="col">Pemilik</th>
+                                <th scope="col" class="sort" data-sort="completion">Status</th>
+                                <th scope="col"></th>
+                            </tr>
+                        </thead>
+                        <?php if(empty($mydocument)) { ?>
+                         
+                          <div class="alert alert-primary" role="alert">
+                              <strong>Maaf !</strong> Tidak Ada Data!
+                          </div>
+                         
+                        <?php }  else { ?>
+                        <tbody class="list">
+                        
+                        <?php foreach($mydocument as $mydocument) ?>
+                        <?php
+                         $CI = &get_instance();
+                         $CI->load->model('Account_model');
+                         $CI->load->model('Space_model');
+
+                          $idodc = $mydocument['id_document'];
+
+                          $ceksignature = $CI->Space_model->checkSignatureById($idodc);
+                          $allsign      = $CI->Space_model->checkAllSignatureFile($idodc);
+  
+
+                          if(empty($ceksignature)) {
+                            $nama ="";
+
+                          } else {
+                            $usermydocument_id = $mydocument['id_user_create'];
+                         
+                            $iduserscek = $this->session->userdata('id');
+  
+                           
+                            $usersdoc     = $CI->Account_model->getAccountById($usermydocument_id);
+                            $logterakhir  = $CI->Space_model->dataUserAproval($idodc);
+                            $checkSign    = $CI->Space_model->checkUserSignature($iduserscek,$idodc);
+
+                            $nama = $usersdoc['nama'];
+                            
+  
+                            if(!empty($checkSign)) {
+                              $idusesign = $checkSign['id_user_doc'];
+                            } else {
+                              $idusesign = '';
+                            }
+
+                          }
+
+                        
+                   
+
+                         
+                          ?>
+                            <tr>
+                                <th scope="row">
+                                    <div class="media align-items-center">
+                                        <div class="media-body">
+                                            <span class="name mb-0 text-sm"><?= $mydocument['name_document'] ?></span>
+                                        </div>
+                                    </div>
+                                </th>
+                                <?php if($mydocument['type_document'] == '1' ) { ?>
+                                  <td>
+                                  Surat
+                                 </td>
+                                <?php } else if($mydocument['type_document'] == '2') { ?> 
+                                  <td>
+                                  Invoice
+                                 </td>
+                                <?php } else if($mydocument['type_document'] == '3') { ?>
+                                  <td>
+                                  Proposal
+                                 </td>
+                                <?php } else if($mydocument['type_document'] == '4') { ?>
+                                  <td>
+                                  BAA
+                                 </td>
+                                <?php } else { ?>
+                                  <td>
+                                  Dokumen Lainnya
+                                 </td>
+                                <?php } ?>
+                                <td>
+                                    <span class="badge badge-dot mr-4">
+                                      <i class="bg-warning"></i>
+                                      <span class="status"><?= $mydocument['name_space'] . ' | ' . $mydocument['nama_project'] ?></span>
+                                    </span>
+                                </td>
+                                <td>
+                                  <?= $mydocument['nama'] ?>
+                                 </td>
+                                 <td>
+                                <?php if(empty($ceksignature)) { ?>
+                                  <span class="badge badge-pill badge-warning">Pembuatan</span>
+                                  <?php } else { ?>
+                                    <?php if($logterakhir['status_log'] == '1') { ?>
+                                    <span class="badge badge-pill badge-info">Menunggu</span>
+                                 <?php } else if($logterakhir['status_log'] == '2') { ?>
+                                   <span class="badge badge-pill badge-success">Approve By <?= $logterakhir['nama_log'] ?> At <?= date("Y-m-d H:i",strtotime($logterakhir['updated_date_doc_signature'])) ?></span>
+                                  <?php } else { ?>
+                                    <span class="badge badge-pill badge-danger">Reject By <?= $logterakhir['nama_log'] ?></span>
+                                  <?php } ?>
+
+                                  <?php } ?>
+                                </td>
+                                <?php if($mydocument['status_document'] == '1' ) { ?>
+                                  <td class="text-right">
+                                    <a href="<?= base_url("document/editdocument/") . $mydocument['id_document'] ?>" class="btn btn-warning btn-sm rounded-pill">
+                                      <span class="btn--inner-icon">
+                                      <i class="ni ni-settings"></i></span>
+                                      <span class="btn-inner--text"></span>
+                                    </a>
+                                    <a data-target="#" class="btn btn-danger btn-sm tombol-hapus rounded-pill text-white">
+                                      <span class="btn--inner-icon">
+                                      <i class="fas fa-trash"></i></span>
+                                      <span class="btn-inner--text"></span>
+                                    </a>
+                                </td>
+                                <?php } else if($mydocument['status_document'] == '2') { ?> 
+                                  <?php if(!empty($allsign)) { ?>
+                                    <?php if($idusesign == $iduserscek) { ?>
+                                    <td class="text-right">
+                                      <a href="<?= base_url("document/showDocument/") . $mydocument['id_document'] ?>" class="btn btn-default btn-sm rounded-pill">
+                                        <span class="btn--inner-icon">
+                                        <i class="fas fa-signature"></i></span>
+                                        <span class="btn-inner--text"> Tanda Tangani </span>
+                                      </a>
+                                    </td>
+                                  <?php } else {  ?>
+                                    <td class="text-right">
+                                      <button class="btn btn-default btn-sm rounded-pill" disabled>
+                                        <span class="btn--inner-icon">
+                                        <i class="fas fa-signature"></i></span>
+                                        <span class="btn-inner--text">  </span>
+                                      </button>
+                                    </td>
+                                    <?php }  ?>
+                                  <?php } else { ?>
+                                    <td class="text-right">
+                                        <a href="<?= base_url("document/showDocument/") . $mydocument['id_document'] ?>" class="btn btn-info btn-sm rounded-pill">
+                                            <span class="btn--inner-icon">
+                                            <i class="ni ni-archive-2"></i></span>
+                                            <span class="btn-inner--text">Lihat Dokumen</span>
+                                      </a>
+                                    </td>                        
+                                  <?php } ?>
+                                <?php } else { ?>
+                                  <td>
+                                  Reject
+                                 </td>
+                                <?php } ?>
+                            
+                               
+                            </tr>
+                          
+                            
+                        </tbody>
+                        <?php } ?>
+                    </table>
+                </div>
+
+                </div>
+
+
+            </div>
+          </div>
+        </div>
+        </div>
+
+        
+  </div>
+</div>
