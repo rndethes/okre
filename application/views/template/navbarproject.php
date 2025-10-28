@@ -64,6 +64,9 @@
                   <span class="nav-link-inner--text">Task</span></a>
                 </li> -->
                 <li class="nav-item">
+                <a class="nav-link mb-sm-3 mb-md-0" id="tabs-text-5-tabnav" href="<?= base_url("notes/index/") . $this->session->userdata('workspace_sesi') . "/space" ?>" role="tab" aria-controls="tabs-text-5" aria-selected="false">Sketch</a>
+            </li>
+                <li class="nav-item">
                   <a class="nav-link" id="showchat" href="javascript:void(0);"> <i class="ni ni-chat-round"></i>
                   <span class="nav-link-inner--text">Chat</span></a>
                 </li>
