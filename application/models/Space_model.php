@@ -202,6 +202,29 @@ class Space_model extends CI_model
       $this->db->delete($table, [$idtb => $id]);
     }
 
+    // ===== MODEL MINI DALAM CONTROLLER =====
+private function getNotesBySpace($id_space)
+{
+    return $this->db->get_where('notes', ['id_space' => $id_space])->result_array();
+}
+
+private function insertNotes($data)
+{
+    $this->db->insert('notes', $data);
+}
+
+private function getNoteById($id_note)
+{
+    return $this->db->get_where('notes', ['id_note' => $id_note])->row_array();
+}
+
+private function deleteNote($id_note)
+{
+    $this->db->delete('notes', ['id_note' => $id_note]);
+}
+
+
+
     public function checkSpaceOkr($id)
     {
       $this->db->select('*');
@@ -1723,6 +1746,10 @@ public function dataAllYourDocument($idspace)
     return $this->db->update('document', $data_update);
 }
 
+public function getSpaceById($id_space)
+{
+    return $this->db->get_where('space', ['id_space_note' => $id_space])->row_array();
+}
 
 
 
