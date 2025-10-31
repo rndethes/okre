@@ -34,7 +34,53 @@
     display:flex;
     height:100vh;
     overflow:visible;
-  }
+
+  height: auto !important;
+  min-height: 100vh;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  scroll-behavior: smooth;
+  font-family: 'Segoe UI', sans-serif;
+  background: #f8f9fa;
+}
+
+/* Pastikan container utama bisa menyesuaikan tinggi kontennya */
+#main, #content, #workspace, .container {
+  height: auto !important;
+  min-height: 100vh;
+  overflow: visible;
+  display: block;
+}
+
+/* Kalau ada canvas atau editor */
+canvas, .canvas-container {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Toolbar biar tetap tampil bagus dan nggak nabrak konten */
+#toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  padding: 8px;
+}
+
+/* Popup agar tetap bisa scroll kalau tinggi layar kecil */
+.popup {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+
+
+
 
   /* LEFT SIDEBAR (compact icons vertical) */
   #leftbar {
