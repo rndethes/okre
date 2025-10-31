@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="id">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>OKRE Sketch — Editor (Floating Toolbar)</title>
+<title> OKRE Sketch — Editor PDF</title>
 
 <!-- Font Awesome -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -84,20 +84,34 @@ canvas, .canvas-container {
 
   /* LEFT SIDEBAR (compact icons vertical) */
   #leftbar {
-    width:88px;
-    background: var(--sidebar-bg);
-    border-right:1px solid rgba(25,118,210,0.06);
+  width:88px;
+  background: var(--sidebar-bg);
+  border-right:1px solid rgba(25,118,210,0.06);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:12px 8px;
+  gap:12px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  height: 100vh;
+  z-index: 1000;
+  box-shadow: var(--shadow);
+  transition:background .18s, color .18s;
+  }
+
+  .left-top {
     display:flex;
     flex-direction:column;
-    align-items:center;
-    padding:12px 8px;
     gap:12px;
-    box-shadow: var(--shadow);
-    transition:background .18s, color .18s;
+    align-items:center;
+    width:100%;
+    flex: 1;
+    overflow: hidden;
   }
-  .left-top {
-    display:flex;flex-direction:column;gap:12px;align-items:center;width:100%;
-  }
+
   .left-icon{
     width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;
     background:transparent;border:1px solid transparent;color:var(--blue-600);cursor:pointer;transition:all .18s;font-size:20px;
@@ -107,15 +121,31 @@ canvas, .canvas-container {
 
   /* PREVIEW PANEL inside sidebar */
   #previewPanel {
-    width:100%;
-    flex:1;
-    overflow-y:auto;
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-    padding:8px;
-    box-sizing:border-box;
+  flex:1;
+  width:100%;
+  overflow-y:auto;
+  overflow-x: hidden;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  padding:8px 0;
+  align-items: center;
+  box-sizing:border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--blue-500) transparent;
   }
+
+/* Scrollbar agar terlihat */
+#previewPanel::-webkit-scrollbar {
+  width: 6px;
+}
+#previewPanel::-webkit-scrollbar-thumb {
+  background: var(--blue-500);
+  border-radius: 3px;
+}
+#previewPanel::-webkit-scrollbar-track {
+  background: transparent;
+}
   .thumb {
     width:64px;
     border-radius:8px;
@@ -140,14 +170,39 @@ canvas, .canvas-container {
     position:absolute; font-size:11px; padding:4px 6px; border-radius:12px; background:rgba(255,255,255,0.85); left:6px; top:6px; color:#0b2540;
   }
   /* at small width hide text of settings popup */
-  .sidebar-footer { display:flex; align-items:center; gap:10px; padding-bottom:6px; }
-
+  .sidebar-footer { 
+    position: sticky;
+  bottom: 0;
+  background: var(--sidebar-bg);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 10px;
+  border-top: 1px solid rgba(25,118,210,0.1);
+  box-shadow: 0 -4px 10px rgba(15,23,42,0.04);
+  z-index: 5;
+  }
   /* MAIN AREA */
-  #main-area { flex:1; display:flex; flex-direction:column; position:relative; overflow:visible; }
+  #main-area { flex:1; display:flex; flex-direction:column; position:relative; overflow:visible; 
+  margin-left: 88px; /* offset dari sidebar kiri */
+  margin-top: 56px;  /* offset dari topbar */
+  padding-bottom: 100px; /* agar konten tidak tertutup toolbar bawah */
+  height: auto;
+  overflow: visible;
+}
   #topbar {
     height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 18px;
     border-bottom:1px solid rgba(25,118,210,0.06); background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.8));
     backdrop-filter: blur(6px);
+    position: fixed;
+  top: 0;
+  left: 88px; /* lebar leftbar */
+  right: 0;
+  z-index: 950;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.8));
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(25,118,210,0.08);
   }
   #topbar .left{display:flex;align-items:center;gap:12px;}
   #topbar h2{margin:0;font-size:16px;color:var(--blue-600);letter-spacing:1px;}
@@ -160,6 +215,8 @@ canvas, .canvas-container {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    padding-top: 20px;
+    padding-bottom: 120px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -188,7 +245,7 @@ canvas, .canvas-container {
     display:flex;
     gap:10px;
     align-items:center;
-    z-index:999;
+    z-index:1100;
     box-shadow: 0 10px 30px rgba(10,25,60,0.12);
     border:1px solid rgba(25,118,210,0.08);
   }
@@ -268,8 +325,8 @@ canvas, .canvas-container {
   <div id="main-area">
     <div id="topbar">
       <div class="left">
-        <h2>OKRE Sketch</h2>
-        <div style="color:var(--muted);font-size:13px;">Editor PDF — Floating toolbar</div>
+        <h2> OKRE Sketch</h2>
+        <div style="color:var(--muted);font-size:13px;">Editor PDF</div>
       </div>
       <div class="actions">
         <button id="shareBtn" class="top-btn"><i class="fa-solid fa-share-nodes"></i>&nbsp;Bagikan</button>
@@ -321,7 +378,7 @@ canvas, .canvas-container {
   </div>
 
   <!-- Shapes -->
-  <div class="tool-btn" id="btnShapes" title="Shapes">
+  <!-- <div class="tool-btn" id="btnShapes" title="Shapes">
     <i class="fa-solid fa-square-plus"></i>
     <div class="tool-label">Shapes</div>
     <div class="popup" id="popupShapes">
@@ -335,7 +392,7 @@ canvas, .canvas-container {
       <label>Shapes mode (placeholder)</label>
       <div style="font-size:13px;color:var(--muted)">Fitur shapes: ini placeholder — bisa dikembangkan sesuai kebutuhan.</div>
     </div>
-  </div>
+  </div> -->
 
   <!-- Brush settings -->
   <div class="tool-btn" id="btnBrushSettings" title="Brush settings">
@@ -375,7 +432,7 @@ canvas, .canvas-container {
   </div>
 
   <!-- Canvas size -->
-  <div class="tool-btn" id="btnCanvasSize" title="Ukuran canvas">
+  <!-- <div class="tool-btn" id="btnCanvasSize" title="Ukuran canvas">
     <i class="fa-solid fa-arrows-up-down-left-right"></i>
     <div class="tool-label">Ukuran</div>
     <div class="popup" id="popupSize">
@@ -389,7 +446,7 @@ canvas, .canvas-container {
       <div style="height:8px"></div>
       <button class="small-btn" id="applyCanvasSize">Terapkan ke halaman aktif</button>
     </div>
-  </div>
+  </div> -->
 
   <!-- Zoom -->
   <div class="tool-btn" id="btnZoom" title="Zoom">
@@ -632,6 +689,7 @@ function getPosOnCanvas(canvas, e){
 }
 
 /* Enable drawing on a canvas and hook to onPageEdited */
+
 function enableDrawingOnCanvas(canvas, pageIndex){
   const ctx = canvas.getContext('2d');
   ctx.lineJoin = 'round';
@@ -657,7 +715,8 @@ function enableDrawingOnCanvas(canvas, pageIndex){
     hasDrawn = false;
     last = getPosOnCanvas(canvas, e);
     saveSnapshotToUndo();
-  };
+};
+
 
   const move = e => {
     if(!drawing || panMode) return;
@@ -803,11 +862,12 @@ document.getElementById('fitBtn').onclick = ()=>{
 
 /* Pan mode */
 const panToggleBtn = document.getElementById('panToggleBtn');
-panToggleBtn.onclick = ()=>{
+panToggleBtn.addEventListener('click', ()=>{
   panMode = !panMode;
   panToggleBtn.textContent = 'Pan: ' + (panMode ? 'ON' : 'OFF');
   container.style.cursor = panMode ? 'grab' : 'default';
-};
+});
+
 
 let isPanning=false, startPan={x:0,y:0}, scrollStart={x:0,y:0};
 container.addEventListener('mousedown', e=>{
@@ -816,6 +876,8 @@ container.addEventListener('mousedown', e=>{
   startPan={x:e.clientX,y:e.clientY};
   scrollStart={x:container.scrollLeft,y:container.scrollTop};
 });
+
+
 container.addEventListener('mousemove', e=>{
   if(!isPanning) return;
   const dx = e.clientX - startPan.x;
@@ -1023,6 +1085,40 @@ async function renderAllPages(restore=true){
 
     enableDrawingOnCanvas(drawCanvas, i-1);
   }
+  /* ---------- PAN MODE ---------- */
+let isPanning = false;
+let panStart = {x:0, y:0};
+let scrollStart = {x:0, y:0};
+
+container.addEventListener('mousedown', e => {
+  if (!panMode) return;
+  isPanning = true;
+  container.style.cursor = 'grab';
+  panStart = {x: e.clientX, y: e.clientY};
+  scrollStart = {x: container.scrollLeft, y: container.scrollTop};
+});
+
+container.addEventListener('mousemove', e => {
+  if (!isPanning || !panMode) return;
+  e.preventDefault();
+  const dx = e.clientX - panStart.x;
+  const dy = e.clientY - panStart.y;
+  container.scrollLeft = scrollStart.x - dx;
+  container.scrollTop  = scrollStart.y - dy;
+});
+
+container.addEventListener('mouseup', () => {
+  if (!panMode) return;
+  isPanning = false;
+  container.style.cursor = 'default';
+});
+
+container.addEventListener('mouseleave', () => {
+  if (!panMode) return;
+  isPanning = false;
+  container.style.cursor = 'default';
+});
+
 
   setProgress(100);
   hideProgress();
@@ -1042,6 +1138,8 @@ async function renderAllPages(restore=true){
     await renderAllPages(false);
   }catch(e){ console.error(e); alert('Gagal memuat PDF.'); }
 })();
+
+
 
 </script>
 </body>
