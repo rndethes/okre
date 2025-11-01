@@ -78,6 +78,15 @@ canvas, .canvas-container {
   overflow-y: auto;
 }
 
+#saveServerTopBtn {
+  background: linear-gradient(180deg, var(--blue-500), var(--blue-600));
+  color: #fff;
+  border: none;
+}
+#saveServerTopBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(14,165,233,0.25);
+}
 
 
 
@@ -99,8 +108,8 @@ canvas, .canvas-container {
   height: 100vh;
   z-index: 1000;
   box-shadow: var(--shadow);
-  transition:background .18s, color .18s;
-  }
+  transition:background .18s, color .18s;  
+}
 
   .left-top {
     display:flex;
@@ -297,6 +306,128 @@ canvas, .canvas-container {
     .bottom-toolbar { left:16px; transform:none; right:16px; justify-content:space-between; }
     .popup{ left:auto; right:0; transform:translateY(8px); bottom:78px; }
   }
+  .dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--card);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  min-width: 160px;
+  padding: 8px;
+  z-index: 999;
+}
+
+.dropdown-content button {
+  width: 100%;
+  text-align: left;
+  margin: 4px 0;
+}
+
+.dropdown-content.show {
+  display: block;
+}
+
+/* ============ RESPONSIVE DESIGN ============ */
+@media (max-width: 1024px) {
+  #main-area {
+    margin-left: 0;
+  }
+  #topbar {
+    left: 0;
+  }
+  #leftbar {
+    width: 70px;
+  }
+  #topbar h2 {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Hilangkan sidebar kiri untuk layar kecil */
+  #leftbar {
+    display: none;
+  }
+  #topbar {
+    left: 0;
+    padding: 0 10px;
+    justify-content: space-between;
+  }
+  #topbar .actions {
+    gap: 6px;
+  }
+  .top-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .bottom-toolbar {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    border-radius: 16px;
+    height: 58px;
+    padding: 6px 10px;
+    justify-content: space-between;
+  }
+  .tool-btn {
+    width: 46px;
+    height: 46px;
+  }
+  .popup {
+    right: 4px;
+    position: fixed !important;       /* dari absolute ke fixed */
+    bottom: 80px !important;          /* beri jarak dari toolbar */
+    left: 50% !important;
+    transform: translateX(-50%) translateY(0);
+    max-width: 92vw;
+    max-height: 70vh;
+    overflow-y: auto;
+    z-index: 1200;
+    transition: all .2s ease;
+  }
+
+
+@media (max-width: 480px) {
+  #topbar h2 {
+    font-size: 13px;
+  }
+  #topbar .left div {
+    font-size: 11px;
+  }
+  .top-btn i {
+    font-size: 14px;
+  }
+  .dropdown-content {
+    right: 0;
+    min-width: 140px;
+  }
+  .tool-btn {
+    width: 42px;
+    height: 42px;
+  }
+  .popup {
+    font-size: 13px;
+    bottom: 90px !important;
+    max-height: 60vh;
+  }
+  .page {
+    width: 100% !important;
+    height: auto !important;
+  }
+  canvas {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -326,11 +457,26 @@ canvas, .canvas-container {
     <div id="topbar">
       <div class="left">
         <h2> OKRE Sketch</h2>
+        <button id="sidebarToggle" class="top-btn" style="display:none;">
+  <i class="fa-solid fa-eye"></i>
+</button>
         <div style="color:var(--muted);font-size:13px;">Editor PDF</div>
       </div>
       <div class="actions">
         <button id="shareBtn" class="top-btn"><i class="fa-solid fa-share-nodes"></i>&nbsp;Bagikan</button>
-        <button id="downloadTopBtn" class="top-btn"><i class="fa-solid fa-download"></i>&nbsp;Download</button>
+         <button id="saveServerTopBtn" class="top-btn">
+    <i class="fa-solid fa-cloud-arrow-up"></i>&nbsp;Server
+  </button>
+       <div class="dropdown">
+  <button id="downloadTopBtn" class="top-btn">
+    <i class="fa-solid fa-download"></i>&nbsp;Download <i class="fa-solid fa-caret-down"></i>
+  </button>
+  <div class="dropdown-content" id="downloadDropdown">
+    <button class="small-btn" id="savePdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+    <button class="small-btn" id="downloadJpgBtn"><i class="fa-solid fa-image"></i> JPG</button>
+  </div>
+</div>
+
       </div>
     </div>
 
@@ -475,9 +621,9 @@ canvas, .canvas-container {
   </div>
 
   <!-- Save / Download -->
-  <div class="tool-btn" id="btnSave" title="Save / Download">
+  <!-- <div class="tool-btn" id="btnSave" title="Save / Download">
     <i class="fa-solid fa-file-arrow-down"></i>
-    <div class="tool-label">Simpan</div>
+    <div class="tool-label">Simpan</div> -->
     <div class="popup" id="popupSave">
       <label>Ekspor</label>
       <div style="display:flex;gap:8px;">
@@ -529,6 +675,7 @@ const sizePicker = document.getElementById('sizePicker');
 const drawModeSelect = document.getElementById('drawMode');
 
 const pdfUrl = "<?= base_url('index.php/notes/view_pdf/'.$filename) ?>";
+
 
 /* Theme handling */
 function setThemeLight(){
@@ -1031,6 +1178,34 @@ pagesToggle.addEventListener('click', ()=>{
   }
 });
 
+// === Responsif untuk layar HP / tablet ===
+function handleResponsiveResize() {
+  if (!pdfDoc) return;
+  captureAllDrawsToStates(); // simpan coretan dulu
+
+  // Hitung ulang skala sesuai lebar layar
+  const containerWidth = container.clientWidth - 40; // padding
+  const firstPage = document.querySelector('.page canvas:not(.draw-layer)');
+  if (!firstPage) return;
+
+  const baseWidth = firstPage.width;
+  const ratio = containerWidth / baseWidth;
+
+  // pilih zoom level terdekat biar konsisten
+  let bestIdx = 0, bestDiff = Infinity;
+  for (let i = 0; i < zoomLevels.length; i++) {
+    const diff = Math.abs(zoomLevels[i] - ratio);
+    if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+  }
+
+  currentZoomIndex = bestIdx;
+  scale = zoomLevels[currentZoomIndex];
+  updateZoomLabel();
+
+  renderAllPages(true); // render ulang semua halaman sesuai ukuran baru
+}
+
+
 /* Render all pages using PDF.js and attach draw layers */
 async function renderAllPages(restore=true){
   showProgress(); setProgress(5);
@@ -1139,6 +1314,56 @@ container.addEventListener('mouseleave', () => {
   }catch(e){ console.error(e); alert('Gagal memuat PDF.'); }
 })();
 
+// === Dropdown Download ===
+const downloadTopBtn = document.getElementById('downloadTopBtn');
+const downloadDropdown = document.getElementById('downloadDropdown');
+
+downloadTopBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  downloadDropdown.classList.toggle('show');
+});
+
+document.addEventListener('click', () => {
+  downloadDropdown.classList.remove('show');
+});
+
+// === Tombol Server di Topbar === 
+document.getElementById('saveServerTopBtn').addEventListener('click', async () => {
+  try {
+    showProgress();
+    setProgress(5);
+    const bytes = await generateAnnotatedPdfBytes(p => setProgress(5 + Math.round(p * 0.8)));
+    setProgress(70);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const form = new FormData();
+    form.append('pdf_file', blob, 'annotated_' + Date.now() + '.pdf');
+
+    const res = await fetch("<?= base_url('index.php/notes/save_pdf_server') ?>", {
+      method: 'POST',
+      body: form
+    });
+
+    const json = await res.json();
+    setProgress(100);
+    hideProgress();
+
+    if (json.status === 'success') alert('✅ PDF berhasil disimpan di server:\n' + json.file);
+    else alert('❌ Gagal simpan: ' + (json.message || 'unknown'));
+  } catch (err) {
+    console.error(err);
+    hideProgress();
+    alert('⚠️ Terjadi kesalahan saat menyimpan ke server.');
+  }
+
+  window.addEventListener('resize', () => hideAllPopups());
+window.addEventListener('scroll', () => hideAllPopups(), true);
+});
+
+// === Re-render otomatis kalau ukuran layar berubah ===
+window.addEventListener('resize', () => {
+  clearTimeout(window._resizeTimer);
+  window._resizeTimer = setTimeout(handleResponsiveResize, 400);
+});
 
 
 </script>
