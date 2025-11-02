@@ -12,7 +12,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 1️⃣ Halaman utama Notes
+    // Halaman utama Notes
     // ==================================================
     public function index($id_space = null)
     {
@@ -38,7 +38,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 2️⃣ Upload PDF + Simpan DB + Buka Konva
+    // Upload PDF + Simpan DB + Buka Konva
     // ==================================================
     public function upload_action()
     {
@@ -81,7 +81,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 3️⃣ Editor Konva (PDF + Coretan)
+    // Editor Konva (PDF + Coretan)
     // ==================================================
     public function konva($filename = null)
     {
@@ -94,8 +94,9 @@ class Notes extends CI_Controller {
         $this->load->view('notes/document_konva', $data);
     }
 
+    
     // ==================================================
-    // 4️⃣ Canvas kosong
+    // Canvas kosong
     // ==================================================
     public function canvas_blank()
     {
@@ -103,7 +104,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 5️⃣ PDF Viewer Proxy (PDF.js Support)
+    // PDF Viewer Proxy (PDF.js Support)
     // ==================================================
     public function view_pdf($filename)
     {
@@ -127,7 +128,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 6️⃣ Save Canvas (Image/JSON)
+    // Save Canvas (Image/JSON)
     // ==================================================
     public function save_canvas()
     {
@@ -151,7 +152,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 7️⃣ Save PDF hasil edit (langsung PDF)
+    // Save PDF hasil edit (langsung PDF)
     // ==================================================
     public function save_pdf_server()
     {
@@ -177,7 +178,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 8️⃣ Hapus Dokumen
+    // Hapus Dokumen
     // ==================================================
     public function delete($id)
     {
@@ -192,7 +193,7 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    // 🔹 Mini Model Helpers
+    //  Mini Model Helpers
     // ==================================================
     private function getNotesBySpace($id_space)
     {
@@ -213,4 +214,60 @@ class Notes extends CI_Controller {
     {
         return $this->db->delete('notes', ['id_note' => $id_note]);
     }
+    
+    
+    // ==================================================
+    // Bagikan Notes ke Anggota Space
+    // ==================================================
+    public function share_note()
+    {
+        $id_note  = $this->input->post('id_note');
+        $selected_users = $this->input->post('users'); // array id user yang dipilih
+        $created_by = $this->session->userdata('id');
+
+        // Pastikan array valid
+        if (!is_array($selected_users)) {
+            $selected_users = [];
+        }
+
+        // Pastikan user juga dibagikan ke dirinya sendiri
+        if (!in_array($created_by, $selected_users)) {
+            $selected_users[] = $created_by;
+        }
+
+        foreach ($selected_users as $user_id) {
+            // Cek apakah sudah ada sebelumnya
+            $exists = $this->db->get_where('notes_share', [
+                'id_users' => $user_id,
+                'id_notes' => $id_note
+            ])->num_rows();
+
+            if ($exists == 0) {
+                $this->db->insert('notes_share', [
+                    'id_users' => $user_id,
+                    'id_notes' => $id_note,
+                    'state_note_share' => 'active'
+                ]);
+            }
+        }
+
+        echo json_encode(['status' => 'success']);
+    } 
+
+
+    // ==================================================
+    // Ambil Anggota Space untuk Dropdown Bagikan
+    // ==================================================
+    public function get_space_members()
+    {
+        $id_space = $this->session->userdata('workspace_sesi');
+        $this->db->select('users.id, users.nama, users.username');
+        $this->db->from('space_team');
+        $this->db->join('users', 'users.id = space_team.id_user');
+        $this->db->where('space_team.id_workspace', $id_space);
+
+        $result = $this->db->get()->result_array();
+        echo json_encode($result);
+    }
+
 }
