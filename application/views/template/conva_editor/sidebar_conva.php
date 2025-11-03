@@ -1,5 +1,5 @@
 <?php
-// ===================== SIDEBAR_CONPA =====================
+// ===================== SIDEBAR_CONVA =====================
 ?>
 <div id="leftbar">
     <div class="left-top">
