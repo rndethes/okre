@@ -77,10 +77,14 @@
 </div>
 
 <!-- ===================== LIBRARIES ===================== -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+<!-- PDF.js dan PDF-Lib -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
+<script defer src="<?= base_url('assets/okre_conva/script_conva.js') ?>"></script>
 <!-- ===================== SCRIPT UTAMA ===================== -->
 <script>
 document.addEventListener("DOMContentLoaded", () => {
@@ -102,8 +106,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 </script>
-
-<script src="<?= base_url('assets/okre_conva/script_conva.js') ?>"></script>
 
 </body>
 </html>
