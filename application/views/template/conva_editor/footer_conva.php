@@ -3,7 +3,7 @@
 ?>
 
 <!-- SETTINGS POPUP -->
-<div class="popup" id="settingsPopup" style="position:fixed; left:96px; bottom:84px; display:none; z-index:1200;">
+<div class="popup" id="settingsPopup" style="display:none;">
   <label>Mode tampilan</label>
   <div style="display:flex;gap:8px;margin-bottom:8px;">
     <button class="small-btn" id="themeLightBtn">Light</button>
@@ -44,6 +44,7 @@
   </div>
 
   <!-- ZOOM -->
+   
   <div class="tool-btn" id="btnZoom" title="Zoom">
     <i class="fa-solid fa-magnifying-glass-plus"></i>
     <div class="popup" id="popupZoom" style="display:none;">

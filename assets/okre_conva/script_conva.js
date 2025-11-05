@@ -7,7 +7,12 @@
   /* ========== PDF.js Setup ========== */
   // load pdfjs from CDN earlier via defer; reference here
   const pdfjsLib = window['pdfjs-dist/build/pdf'];
-  if (pdfjsLib) {
+  if (typeof window['pdfjs-dist/build/pdf'] === 'undefined') {
+  alert('PDF.js tidak ditemukan, pastikan CDN dimuat dengan benar.');
+  return;
+}
+
+if (pdfjsLib) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 
@@ -59,7 +64,6 @@
   let tool = 'brush';
   let color = '#000000ff';
   let size = 4;
-
   let isRendering = false;
   let numPages = 0;
 
@@ -89,11 +93,7 @@
   function setProgress(p) { if (progressFill) progressFill.style.width = Math.max(0, Math.min(100, p)) + '%'; }
   function hideProgress() { if (progressBar) setTimeout(() => { progressBar.style.display = 'none'; }, 200); }
 
-  function hideAllPopups() {
-    document.querySelectorAll('.popup').forEach(p => p.classList.remove('show'));
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-  }
-
+  
   function scrollPreviewTo(pageIndex) {
     const thumbs = previewPanel?.querySelectorAll('.thumb');
     const thumb = thumbs ? thumbs[pageIndex] : null;
@@ -120,10 +120,20 @@
     let last = { x: 0, y: 0 };
 
     function getCanvasPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const t = (e.touches && e.touches[0]) || e;
-      return { x: (t.clientX - rect.left), y: (t.clientY - rect.top) };
-    }
+  const rect = canvas.getBoundingClientRect();
+  const t = (e.touches && e.touches[0]) || e;
+
+  // posisi relatif di layar
+  const rawX = t.clientX - rect.left;
+  const rawY = t.clientY - rect.top;
+
+  // sesuaikan dengan skala dan DPI
+  const logicalX = rawX * (canvas.width / rect.width);
+  const logicalY = rawY * (canvas.height / rect.height);
+
+  return { x: logicalX, y: logicalY };
+}
+
 
     function saveSnapshotToUndo() {
       const s = pageStates[pageIndex];
@@ -159,40 +169,30 @@
 
   // tekanan stylus (pressure)
   const pressure = (typeof e.pressure === 'number' && e.pressure > 0) ? e.pressure : 1;
-  const lw = size * pressure;
-
+  const effectiveScale = previousScale || 1.0;
+  const lw = size * pressure * effectiveScale;
   ctx.lineWidth = lw;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.miterLimit = 10;
 
   // ==== smoothing antar titik (anti garis) ====
+  const smoothFactor = 0.25;
   const dx = pos.x - last.x;
   const dy = pos.y - last.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const steps = Math.ceil(dist / (lw / 2)); // makin besar garis → makin padat interpolasi
+  const steps = Math.ceil(dist / (lw * smoothFactor));
 
-  if (steps > 1) {
-    ctx.beginPath();
-    ctx.moveTo(last.x, last.y);
-
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const x = last.x + dx * t;
-      const y = last.y + dy * t;
-      ctx.lineTo(x, y);
-    }
-
-    ctx.stroke();
-  } else {
-    // fallback bila pergerakan sangat lambat
-    ctx.beginPath();
-    ctx.moveTo(last.x, last.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(last.x, last.y);
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const x = last.x + dx * t;
+    const y = last.y + dy * t;
+    ctx.lineTo(x, y);
   }
+  ctx.stroke();
 
-  // simpan posisi terakhir
   last = pos;
   hasDrawn = true;
 }, { passive: false });
@@ -265,7 +265,7 @@
   redoBtn?.addEventListener('click', () => { const c = getFocusedDrawCanvas(); if (c && c._doRedo) c._doRedo(); });
 
 
-/* ========== PAN MODE TERPADU (STABIL UNTUK MOUSE, TOUCHPAD, DAN HP) ========== */
+/* ========== PAN MODE (STABIL UNTUK MOUSE, TOUCHPAD, DAN HP) ========== */
 
 let isPanning = false;
 let startPan = { x: 0, y: 0 };
@@ -277,8 +277,7 @@ function setPanMode(enabled) {
   panToggleBtn?.classList.toggle('active', panMode);
 
   if (container) {
-    container.style.cursor = panMode ? 'grab' : 'default';
-    // biarkan scroll biasa tetap aktif (khusus wheel/touchpad)
+    container.style.cursor = panMode ? 'grab' : (tool === 'eraser' ? 'cell' : 'crosshair');
     container.style.touchAction = 'auto';
   }
 
@@ -287,6 +286,9 @@ function setPanMode(enabled) {
     c.style.pointerEvents = panMode ? 'none' : 'auto';
     c.style.cursor = panMode ? 'grab' : 'crosshair';
     c.style.touchAction = panMode ? 'auto' : 'none';
+  });
+  document.querySelectorAll('.page canvas:not(.draw-layer)').forEach(c => {
+    c.style.pointerEvents = enabled  ? 'none' : 'auto';
   });
 }
 
@@ -355,7 +357,6 @@ container?.addEventListener('wheel', e => {
   quickEraser?.addEventListener('click', () => { tool = 'eraser'; if (drawModeSelect) drawModeSelect.value = 'eraser'; });
   if (drawModeSelect) drawModeSelect.addEventListener('change', e => { tool = e.target.value; });
   colorPicker?.addEventListener('change', e => { color = e.target.value; if (colorPicker2) colorPicker2.value = color; });
-  colorPicker2?.addEventListener('change', e => { color = e.target.value; if (colorPicker) colorPicker.value = color; });
   sizePicker?.addEventListener('input', e => { size = Number(e.target.value); });
 
   /* ========== CLEAR ALL ========== */
@@ -375,75 +376,106 @@ container?.addEventListener('wheel', e => {
   });
 
     /* ========== ZOOM CONTROLS  ========== */
+async function renderPageAtScale(pageIndex, scale) {
+  if (!pdfDoc) return;
+  const pageNum = pageIndex + 1;
+  const page = await pdfDoc.getPage(pageNum);
 
-  function resizeCanvasPreserveContent(canvas, scaleFactor) {
-    if (!canvas) return;
-    const oldW = canvas.width;
-    const oldH = canvas.height;
+  // gunakan devicePixelRatio agar retina / zoom tetap tajam
+  const viewport = page.getViewport({ scale: scale * window.devicePixelRatio });
 
-    // simpan isi lama
-    const tmp = document.createElement('canvas');
-    tmp.width = oldW;
-    tmp.height = oldH;
-    tmp.getContext('2d').drawImage(canvas, 0, 0);
+  const pageDiv = container.querySelectorAll('.page')[pageIndex];
+  if (!pageDiv) return;
 
-    // ubah ukuran intrinsic canvas
-    const newW = Math.max(1, Math.round(oldW * scaleFactor));
-    const newH = Math.max(1, Math.round(oldH * scaleFactor));
-    canvas.width = newW;
-    canvas.height = newH;
+  const baseCanvas = pageDiv.querySelector('canvas:not(.draw-layer)');
+  const drawCanvas = pageDiv.querySelector('canvas.draw-layer');
 
-    // gambar ulang isi lama
-    const ctx = canvas.getContext('2d');
-    ctx.save();
-    ctx.clearRect(0, 0, newW, newH);
-    ctx.drawImage(tmp, 0, 0, oldW, oldH, 0, 0, newW, newH);
-    ctx.restore();
+  // ===== BASE LAYER (PDF) =====
+  baseCanvas.width = Math.round(viewport.width);
+  baseCanvas.height = Math.round(viewport.height);
+  baseCanvas.style.width = (viewport.width / window.devicePixelRatio) + 'px';
+  baseCanvas.style.height = (viewport.height / window.devicePixelRatio) + 'px';
 
-    // samakan ukuran CSS
-    canvas.style.width = newW + 'px';
-    canvas.style.height = newH + 'px';
+  const ctx = baseCanvas.getContext('2d', { willReadFrequently: true });
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.clearRect(0, 0, baseCanvas.width, baseCanvas.height);
+  await page.render({ canvasContext: ctx, viewport }).promise;
+
+  // ===== DRAW LAYER =====
+  if (drawCanvas) {
+    const oldData = pageStates[pageIndex]?.dataURL;
+    drawCanvas.width = baseCanvas.width;
+    drawCanvas.height = baseCanvas.height;
+    drawCanvas.style.width = baseCanvas.style.width;
+    drawCanvas.style.height = baseCanvas.style.height;
+
+    const dctx = drawCanvas.getContext('2d');
+    dctx.setTransform(1, 0, 0, 1, 0, 0);
+    dctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    dctx.imageSmoothingEnabled = true;
+    dctx.imageSmoothingQuality = 'high';
+    
+    dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    dctx.lineCap = 'round';
+    dctx.lineJoin = 'round';
+    if (oldData) {
+      const img = new Image();
+      img.onload = () => {
+        // gambar ulang pixel-perfect tanpa scaling interpolation
+        dctx.drawImage(img, 0, 0, img.width, img.height,
+                            0, 0, drawCanvas.width / window.devicePixelRatio,
+                            drawCanvas.height / window.devicePixelRatio);
+      };
+      img.src = oldData;
+    }
   }
 
-  function applyZoomTransform(maintainCenter = true) {
-    const newScale = zoomLevels[currentZoomIndex];
-    const oldScale = previousScale || 1.0;
-    if (!container) return;
+  pageDiv.style.width = baseCanvas.style.width;
+  pageDiv.style.height = baseCanvas.style.height;
+}
 
-    // ambil posisi tengah viewport sebelum zoom
-    let centerDocX = null, centerDocY = null;
-    if (maintainCenter) {
-      centerDocX = (container.scrollLeft + container.clientWidth / 2) / oldScale;
-      centerDocY = (container.scrollTop + container.clientHeight / 2) / oldScale;
-    }
 
-    const pages = document.querySelectorAll('.page');
-    pages.forEach(pd => {
-      const baseCanvas = pd.querySelector('canvas:not(.draw-layer)');
-      const drawCanvas = pd.querySelector('canvas.draw-layer');
-      const scaleFactor = newScale / oldScale;
 
-      if (baseCanvas) resizeCanvasPreserveContent(baseCanvas, scaleFactor);
-      if (drawCanvas) resizeCanvasPreserveContent(drawCanvas, scaleFactor);
+async function applyZoomTransform(maintainCenter = true) {
+  // newScale is the selected zoom level (logical scale relative to base)
+  const newScale = zoomLevels[currentZoomIndex];
+  const oldScale = previousScale || 1.0;
+  if (!container || !pdfDoc) return;
 
-      pd.style.transform = 'none';
-      pd.style.width = (baseCanvas ? baseCanvas.width : pd.clientWidth) + 'px';
-      pd.style.height = (baseCanvas ? baseCanvas.height : pd.clientHeight) + 'px';
-      pd.style.marginBottom = Math.round(8 * newScale) + 'px';
-    });
-
-    updateZoomLabel();
-
-    // kembalikan posisi scroll agar tetap di tengah
-    if (maintainCenter && centerDocX !== null && centerDocY !== null) {
-      const newCenterX = Math.round(centerDocX * newScale);
-      const newCenterY = Math.round(centerDocY * newScale);
-      container.scrollLeft = Math.max(0, newCenterX - Math.round(container.clientWidth / 2));
-      container.scrollTop = Math.max(0, newCenterY - Math.round(container.clientHeight / 2));
-    }
-
-    previousScale = newScale;
+  // preserve center in document logical coords
+  let centerDocX = null, centerDocY = null;
+  if (maintainCenter) {
+    centerDocX = (container.scrollLeft + container.clientWidth / 2) / oldScale;
+    centerDocY = (container.scrollTop + container.clientHeight / 2) / oldScale;
   }
+
+  // Re-render each PDF page at the newScale (this avoids CSS blur)
+  const pages = document.querySelectorAll('.page');
+  for (let i = 0; i < pages.length; i++) {
+    // render each page at scale = newScale * baseScale (baseScale usually 1)
+    const targetScale = newScale * baseScale;
+    // await re-render of this page
+    await renderPageAtScale(i, targetScale * window.devicePixelRatio);
+    // small yield to keep UI responsive
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  updateZoomLabel();
+
+  // restore scroll center (convert logical -> pixel with newScale)
+  if (maintainCenter && centerDocX !== null && centerDocY !== null) {
+    const newCenterX = Math.round(centerDocX * newScale);
+    const newCenterY = Math.round(centerDocY * newScale);
+    container.scrollLeft = Math.max(0, newCenterX - Math.round(container.clientWidth / 2));
+    container.scrollTop = Math.max(0, newCenterY - Math.round(container.clientHeight / 2));
+  }
+
+  previousScale = newScale;
+}
+
 
   // event listener zoom
   zoomInBtn?.addEventListener('click', () => {
@@ -485,7 +517,6 @@ container?.addEventListener('wheel', e => {
 
   /* ========== POPUP / SETTINGS ========== */
   settingsBtn?.addEventListener('click', (e) => { e.stopPropagation(); if (!settingsPopup) return; settingsPopup.style.display = settingsPopup.style.display === 'block' ? 'none' : 'block'; });
-  document.addEventListener('click', () => { if (settingsPopup) settingsPopup.style.display = 'none'; });
   settingsPopup?.addEventListener('click', e => e.stopPropagation());
   themeLightBtn?.addEventListener('click', setThemeLight);
   themeDarkBtn?.addEventListener('click', setThemeDark);
@@ -742,6 +773,26 @@ container?.addEventListener('wheel', e => {
   /* ========== BLANK CANVAS MODE ========== */
   function createBlankCanvasMode() {
     container.innerHTML = '';
+const blankPage = document.createElement('div');
+  blankPage.className = 'page';
+  blankPage.style.position = 'relative';
+  blankPage.style.margin = '8px auto';
+  blankPage.style.background = '#fff';
+  blankPage.style.width = '800px';
+  blankPage.style.height = '1000px';
+
+  const drawCanvas = document.createElement('canvas');
+  drawCanvas.classList.add('draw-layer');
+  drawCanvas.width = 800;
+  drawCanvas.height = 1000;
+  drawCanvas.style.position = 'absolute';
+  drawCanvas.style.left = '0';
+  drawCanvas.style.top = '0';
+  drawCanvas.style.touchAction = 'none';
+  blankPage.appendChild(drawCanvas);
+
+  container.appendChild(blankPage);
+  enableDrawingOnCanvas(drawCanvas, 0);
     // create one page-sized canvas with default A4 px size (approx)
     const w = 794; const h = 1123; // ~A4 96dpi
     const pageDiv = document.createElement('div'); pageDiv.className = 'page'; pageDiv.style.position = 'relative'; pageDiv.style.width = w + 'px'; pageDiv.style.height = h + 'px'; pageDiv.style.margin = '8px auto';
