@@ -3,19 +3,19 @@
 ?>
 
 <!-- SETTINGS POPUP -->
-<div class="popup" id="settingsPopup" style="display:none;">
+<div class="popup-sidebar" id="settingsPopup" style="display:none;">
   <label>Mode tampilan</label>
   <div style="display:flex;gap:8px;margin-bottom:8px;">
     <button class="small-btn" id="themeLightBtn">Light</button>
     <button class="small-btn" id="themeDarkBtn">Dark</button>
-    <button class="small-btn" id="themeCustomBtn">Custom</button>
+    <!-- <button class="small-btn" id="themeCustomBtn">Custom</button> -->
   </div>
-  <div id="customColorRow" style="display:none;">
+  <!-- <div id="customColorRow" style="display:none;">
     <label>Pilih warna aksen</label>
     <input type="color" id="customAccent" value="#1976d2">
     <div style="height:8px"></div>
     <small style="color:var(--muted);">Catatan: dokumen tetap berwarna putih. Ini mengubah warna UI.</small>
-  </div>
+  </div> -->
 </div>
 
 <!-- ===================== BOTTOM TOOLBAR ===================== -->
@@ -94,16 +94,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnZoom = document.getElementById('btnZoom');
   const popupZoom = document.getElementById('popupZoom');
 
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPopup = document.getElementById('settingsPopup');
+
   function togglePopup(popup) {
-    const isVisible = popup.style.display === 'block';
-    document.querySelectorAll('.popup').forEach(p => p.style.display = 'none');
-    popup.style.display = isVisible ? 'none' : 'block';
+    const isVisible = popup.style.display === 'flex'; 
+    
+    document.querySelectorAll('.popup, .popup-sidebar').forEach(p => p.style.display = 'none');
+
+    popup.style.display = isVisible ? 'none' : 'flex';
   }
 
   btnDraw.addEventListener('click', e => { e.stopPropagation(); togglePopup(popupDraw); });
   btnZoom.addEventListener('click', e => { e.stopPropagation(); togglePopup(popupZoom); });
-  document.addEventListener('click', () => {
-    document.querySelectorAll('.popup').forEach(p => p.style.display = 'none');
+  settingsBtn.addEventListener('click', e => { e.stopPropagation(); togglePopup(settingsPopup); });
+  document.addEventListener('click', (e) => {
+    // Tambahkan cek untuk .popup-sidebar
+    if (!e.target.closest('.popup') && !e.target.closest('.popup-sidebar')) {
+      document.querySelectorAll('.popup, .popup-sidebar').forEach(p => p.style.display = 'none');
+    }
   });
 });
 </script>

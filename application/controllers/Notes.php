@@ -77,7 +77,7 @@ class Notes extends CI_Controller {
 
         $this->insertNotes($insertData);
 
-        redirect('notes/konva/' . $dataUpload['file_name']);
+        redirect('notes/konva/' . $dataUpload['file_name'] ."/". $id_space );
     }
 
     // ==================================================
@@ -99,8 +99,10 @@ class Notes extends CI_Controller {
     // Canvas kosong
     // ==================================================
     public function canvas_blank()
-    {
+    {   
+        $this->load->view('template/conva_editor/header_blank');
         $this->load->view('notes/canvas_blank');
+        $this->load->view('template/conva_editor/footer_blank');
     }
 
     // ==================================================
