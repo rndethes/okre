@@ -433,8 +433,9 @@ async function renderPageAtScale(pageIndex, scale) {
     }
   }
 
-  pageDiv.style.width = baseCanvas.style.width;
-  pageDiv.style.height = baseCanvas.style.height;
+  pageDiv.style.width = (viewport.width / window.devicePixelRatio) + 'px';
+pageDiv.style.height = (viewport.height / window.devicePixelRatio) + 'px';
+pageDiv.style.overflow = 'hidden';
 }
 
 
@@ -458,7 +459,8 @@ async function applyZoomTransform(maintainCenter = true) {
     // render each page at scale = newScale * baseScale (baseScale usually 1)
     const targetScale = newScale * baseScale;
     // await re-render of this page
-    await renderPageAtScale(i, targetScale * window.devicePixelRatio);
+    await renderPageAtScale(i, targetScale);
+
     // small yield to keep UI responsive
     await new Promise(r => setTimeout(r, 0));
   }
@@ -513,7 +515,19 @@ async function applyZoomTransform(maintainCenter = true) {
     currentZoomIndex = bestIdx;
     applyZoomTransform(true);
   });
+function applyZoomTransform(scale) {
+  const pages = document.querySelectorAll('.page');
+  pages.forEach(page => {
+    const canvas = page.querySelector('canvas');
+    if (!canvas) return;
 
+    const ratio = window.devicePixelRatio || 1;
+    const adjustedScale = scale / ratio;
+
+    page.style.transformOrigin = 'top center';
+    page.style.transform = `scale(${adjustedScale})`;
+  });
+}
 
   /* ========== POPUP / SETTINGS ========== */
   settingsBtn?.addEventListener('click', (e) => { e.stopPropagation(); if (!settingsPopup) return; settingsPopup.style.display = settingsPopup.style.display === 'block' ? 'none' : 'block'; });

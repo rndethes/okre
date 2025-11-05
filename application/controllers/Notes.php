@@ -156,6 +156,7 @@ class Notes extends CI_Controller {
     // ==================================================
     public function save_pdf_server()
     {
+        header('Content-Type: application/json');
         if (empty($_FILES['pdf_file']['tmp_name'])) {
             echo json_encode(['status' => 'error', 'message' => 'Tidak ada file PDF diterima']);
             return;

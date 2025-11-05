@@ -217,10 +217,13 @@ canvas, .canvas-container {
   flex-direction: column;
   position: relative;
   overflow: visible;
+  width: calc(100vw - 88px);
   margin-left: 88px;
   margin-top: 56px;
   padding-bottom: 100px;
   height: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 #topbar {
@@ -678,4 +681,41 @@ canvas, .canvas-container {
   top: 50% !important;
   left: 50% !important;
   transform: translate(-50%, -50%) !important;
+}
+/* ======== FIX TAMPILAN PDF TERPOTONG / ZOOM BESAR ======== */
+#container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 100vw;
+  padding: 20px 0 120px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+.page {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 6px 22px rgba(14, 165, 233, 0.06);
+  border-radius: 6px;
+  overflow: visible;
+  width: 100%;
+  max-width: 95vw;
+  height: auto;
+  transform-origin: top left;
+  transform: none !important;
+}
+
+.page canvas {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+  object-fit: contain;
+  transform-origin: top left !important;
+  transform: none !important;
+  max-width: 100%;
 }
