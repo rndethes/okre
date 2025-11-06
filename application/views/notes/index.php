@@ -52,7 +52,7 @@
         <li class="nav-item"><a class="nav-link" href="<?= base_url('workspace/chatspace/').$this->session->userdata('workspace_sesi').'/space' ?>">Chat</a></li>
       </ul>
 
-      <!-- Flash message sukses -->
+      <!-- Flash message -->
       <?php if($this->session->flashdata('flashPj')): ?>
         <div class="alert alert-success alert-dismissible fade show text-center" role="alert">
           <?= $this->session->flashdata('flashPj'); ?>
@@ -62,11 +62,10 @@
         </div>
       <?php endif; ?>
 
-      <!-- Upload & Daftar Dokumen -->
+      <!-- Upload -->
       <div class="card mb-4">
-        <div class="card-body">
-          <h2 class="text-center mb-4">Upload PDF Baru atau Mulai Canvas Kosong</h2>
-
+        <div class="card-body text-center">
+          <h2 class="mb-4">Upload PDF Baru atau Mulai Canvas Kosong</h2>
           <div class="d-flex justify-content-center gap-3 mb-3">
             <button type="button" class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#uploadModal">
               <i class="fas fa-upload me-1"></i> Upload & Edit
@@ -77,10 +76,6 @@
               </button>
             </form>
           </div>
-
-          <?php if(isset($error)): ?>
-            <div class="alert alert-danger text-center"><?= $error ?></div>
-          <?php endif; ?>
         </div>
       </div>
 
@@ -92,12 +87,11 @@
               <h5 class="modal-title"><i class="fas fa-file-upload me-1"></i> Upload Dokumen PDF</h5>
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-
             <form id="uploadForm" action="<?= base_url('notes/upload_action') ?>" method="post" enctype="multipart/form-data">
               <div class="modal-body">
                 <div class="mb-3">
                   <label class="form-label">Nama Dokumen</label>
-                  <input type="text" name="name_notes" class="form-control" placeholder="Masukkan nama dokumen" required>
+                  <input type="text" name="name_notes" class="form-control" required>
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Upload File PDF</label>
@@ -117,35 +111,67 @@
       <div class="card">
         <div class="card-body">
           <h4 class="mb-3"><i class="fas fa-file-alt me-2"></i>Daftar Dokumen</h4>
+
           <div class="table-responsive">
-            <table class="table table-bordered table-striped align-middle">
-              <thead class="table-primary">
+            <table class="table align-items-center">
+              <thead class="thead-light">
                 <tr>
-                  <th>No</th>
-                  <th>Nama Dokumen</th>
-                  <th>File</th>
-                  <th>Tanggal Dibuat</th>
-                  <th>Aksi</th>
+                  <th scope="col">Dokumen</th>
+                  <th scope="col">Tanggal Dibuat</th>
+                  <th scope="col">Dibagikan Ke</th>
+                  <th scope="col" class="text-center">Aksi</th>
                 </tr>
               </thead>
-              <tbody>
-                <?php if(!empty($notes)): $no=1; foreach($notes as $n): ?>
-                  <tr>
-                    <td><?= $no++ ?></td>
-                    <td><?= $n['name_notes'] ?></td>
-                    <td><?= $n['file_note'] ?></td>
-                    <td><?= date('d M Y H:i', strtotime($n['created_date'])) ?></td>
-                    <td>
-                      <a href="<?= base_url('notes/view_pdf/'.$n['file_note']) ?>" target="_blank" class="btn btn-sm btn-info rounded-pill">
-                        <i class="fas fa-eye"></i> Lihat
-                      </a>
-                      <a href="<?= base_url('notes/delete/'.$n['id_note']) ?>" class="btn btn-sm btn-danger rounded-pill" onclick="return confirm('Yakin hapus dokumen ini?')">
-                        <i class="fas fa-trash"></i> Hapus
-                      </a>
-                    </td>
-                  </tr>
+              <tbody class="list">
+                <?php if(!empty($notes)): foreach($notes as $n): ?>
+                <?php $shared = $n['shared_users'] ?? []; ?>
+                <tr>
+                  <th scope="row">
+                    <div class="media align-items-center">
+                      <div class="avatar rounded-circle bg-light d-flex align-items-center justify-content-center me-3" style="width:45px; height:45px;">
+                        <i class="fas fa-file-pdf text-danger"></i>
+                      </div>
+                      <div class="media-body">
+                        <span class="fw-bold mb-0 text-sm"><?= $n['name_notes'] ?></span><br>
+                        <small class="text-muted"><?= $n['file_note'] ?></small>
+                      </div>
+                    </div>
+                  </th>
+
+                  <td><?= date('d M Y H:i', strtotime($n['created_date'])) ?></td>
+
+                  <td>
+                    <div class="avatar-group d-flex">
+                      <?php if(!empty($shared)): ?>
+                        <?php foreach($shared as $s): ?>
+                          <span class="avatar avatar-sm rounded-circle bg-secondary text-white me-1 d-inline-flex align-items-center justify-content-center"
+                                data-bs-toggle="tooltip" title="<?= $s['nama'] ?>">
+                            <?= strtoupper(substr($s['nama'], 0, 1)) ?>
+                          </span>
+                        <?php endforeach; ?>
+                      <?php else: ?>
+                        <span class="text-muted small">Belum dibagikan</span>
+                      <?php endif; ?>
+                    </div>
+                  </td>
+
+                  <td class="text-center">
+                    <a href="<?= base_url('notes/view_pdf/'.$n['file_note']) ?>" target="_blank" class="btn btn-sm btn-info rounded-pill me-1" title="Lihat">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="<?= base_url('notes/konva/'.$n['file_note'].'/'.$this->session->userdata('workspace_sesi')) ?>" class="btn btn-sm btn-primary rounded-pill me-1" title="Edit">
+                      <i class="fas fa-pen"></i>
+                    </a>
+                    <button class="btn btn-sm btn-success rounded-pill me-1 btnShare" data-id="<?= $n['id_note'] ?>" title="Bagikan">
+                      <i class="fas fa-share"></i>
+                    </button>
+                    <a href="<?= base_url('notes/delete/'.$n['id_note']) ?>" onclick="return confirm('Yakin hapus dokumen ini?')" class="btn btn-sm btn-danger rounded-pill" title="Hapus">
+                      <i class="fas fa-trash"></i>
+                    </a>
+                  </td>
+                </tr>
                 <?php endforeach; else: ?>
-                  <tr><td colspan="5" class="text-center">Belum ada dokumen.</td></tr>
+                <tr><td colspan="4" class="text-center text-muted py-4">Belum ada dokumen.</td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -157,15 +183,143 @@
   </div>
 </div>
 
-<!-- Optional: Auto-refresh tabel setelah upload sukses -->
+<!-- ===================== MODAL BAGIKAN ===================== -->
+<div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title" id="shareModalLabel">
+          <i class="fas fa-share-alt me-2"></i> Bagikan Dokumen ke Anggota Space
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="noteIdToShare">
+
+        <p>Pilih anggota yang ingin diberi akses ke dokumen ini.</p>
+
+        <div class="input-group mb-3">
+          <select id="userSelect" class="form-select">
+            <option value="">-- Pilih pengguna --</option>
+            <?php foreach ($space_members as $member): ?>
+              <?php if ($member['id'] != $this->session->userdata('id_user')): ?>
+                <option value="<?= $member['id'] ?>"><?= $member['nama'] ?></option>
+              <?php endif; ?>
+            <?php endforeach; ?>
+          </select>
+
+          <select id="roleSelect" class="form-select" style="max-width:140px;">
+            <option value="viewer">Viewer</option>
+            <option value="editor">Editor</option>
+          </select>
+
+          <button class="btn btn-primary" id="btnAddShare">Tambahkan</button>
+        </div>
+
+        <ul class="list-group" id="sharedUserList">
+          <li class="list-group-item text-muted small text-center">Belum ada pengguna ditambahkan.</li>
+        </ul>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+        <button class="btn btn-success" id="btnSaveShare">Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const flash = <?= json_encode($this->session->flashdata('flashPj')); ?>;
-    if (flash) {
-      setTimeout(() => {
-        location.reload();
-      }, 1000);
+document.addEventListener('DOMContentLoaded', function() {
+  const shareModal = new bootstrap.Modal(document.getElementById('shareModal'));
+  let noteId = null;
+  let sharedUsers = [];
+
+  // buka modal dan set ID dokumen
+  document.querySelectorAll('.btnShare').forEach(btn => {
+    btn.addEventListener('click', function() {
+      noteId = this.dataset.id;
+      document.getElementById('noteIdToShare').value = noteId;
+      document.getElementById('sharedUserList').innerHTML = `
+        <li class="list-group-item text-muted small text-center">Belum ada pengguna ditambahkan.</li>`;
+      sharedUsers = [];
+      shareModal.show();
+    });
+  });
+
+  // tambah user sementara ke list
+  document.getElementById('btnAddShare').addEventListener('click', function() {
+    const userSelect = document.getElementById('userSelect');
+    const roleSelect = document.getElementById('roleSelect');
+    const userId = userSelect.value;
+    const userName = userSelect.options[userSelect.selectedIndex].text;
+    const role = roleSelect.value;
+
+    if (!userId) return alert('Pilih pengguna terlebih dahulu.');
+
+    if (!sharedUsers.find(u => u.id == userId)) {
+      sharedUsers.push({ id: userId, name: userName, role });
+
+      const list = document.getElementById('sharedUserList');
+      if (list.children[0].classList.contains('text-muted')) list.innerHTML = '';
+
+      const li = document.createElement('li');
+      li.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+      li.innerHTML = `
+        <div><strong>${userName}</strong>
+          <span class="badge bg-${role === 'editor' ? 'primary' : 'secondary'} ms-2 text-uppercase">${role}</span>
+        </div>
+        <button class="btn btn-sm btn-outline-danger btnRemoveUser"><i class="fas fa-times"></i></button>
+      `;
+      li.querySelector('.btnRemoveUser').addEventListener('click', () => {
+        li.remove();
+        sharedUsers = sharedUsers.filter(u => u.id != userId);
+        if (sharedUsers.length === 0) {
+          list.innerHTML = `<li class="list-group-item text-muted small text-center">Belum ada pengguna ditambahkan.</li>`;
+        }
+      });
+      list.appendChild(li);
+    } else {
+      alert('Pengguna ini sudah ditambahkan.');
     }
   });
-  
+
+  // simpan ke server
+  document.getElementById('btnSaveShare').addEventListener('click', function() {
+    if (sharedUsers.length === 0) return alert('Belum ada pengguna untuk dibagikan.');
+
+    fetch('<?= base_url("notes/share_to_users") ?>', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_note: noteId,
+        users: sharedUsers
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert('Dokumen berhasil dibagikan.');
+        shareModal.hide();
+        location.reload();
+      } else {
+        alert('Gagal menyimpan data: ' + data.message);
+      }
+    })
+    .catch(err => console.error('Error:', err));
+  });
+});
+</script>
+
+
+
+<!-- Tooltip Bootstrap -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+  tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+  });
+});
 </script>

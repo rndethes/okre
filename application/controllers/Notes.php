@@ -1,4 +1,4 @@
-<?php
+<?php 
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Notes extends CI_Controller {
@@ -24,6 +24,7 @@ class Notes extends CI_Controller {
 
         $data['space'] = $this->Space_model->getWorkspaceById($id_space);
         $data['notes'] = $this->getNotesBySpace($id_space);
+        $data['space_members'] = $this->getSpaceMembers($id_space);
         $data['title'] = 'Sketch / Notes';
 
         $data['users_name'] = $this->db
@@ -36,6 +37,33 @@ class Notes extends CI_Controller {
         $this->load->view('notes/index', $data);
         $this->load->view('template/footer');
     }
+
+    // ======== Ambil Notes + User yang Dibagikan ========
+private function getNotesWithShares($id_space)
+{
+    $notes = $this->db->get_where('notes', ['id_space_note' => $id_space])->result_array();
+
+    foreach ($notes as &$note) {
+        $this->db->select('users.id, users.nama');
+        $this->db->from('notes_share');
+        $this->db->join('users', 'users.id = notes_share.id_users');
+        $this->db->where('notes_share.id_notes', $note['id_note']);
+        $note['shared_users'] = $this->db->get()->result_array();
+    }
+
+    return $notes;
+}
+
+// ======== Ambil Anggota Space ========
+private function getSpaceMembers($id_space)
+{
+    $this->db->select('users.id, users.nama');
+    $this->db->from('space_team');
+    $this->db->join('users', 'users.id = space_team.id_user');
+    $this->db->where('space_team.id_workspace', $id_space);
+    return $this->db->get()->result_array();
+}
+
 
     // ==================================================
     // Upload PDF + Simpan DB + Buka Konva
@@ -52,7 +80,6 @@ class Notes extends CI_Controller {
         $config['encrypt_name']  = TRUE;
 
         if (!is_dir($config['upload_path'])) mkdir($config['upload_path'], 0777, true);
-
         $this->upload->initialize($config);
 
         if (!$this->upload->do_upload('pdf_file')) {
@@ -75,9 +102,8 @@ class Notes extends CI_Controller {
             'updated_date'  => $created_date
         ];
 
-        $this->insertNotes($insertData);
-
-        redirect('notes/konva/' . $dataUpload['file_name'] ."/". $id_space );
+        $this->db->insert('notes', $insertData);
+        redirect('notes/konva/' . $dataUpload['file_name'] . "/" . $id_space);
     }
 
     // ==================================================
@@ -90,11 +116,20 @@ class Notes extends CI_Controller {
         $file_path = FCPATH . 'uploads/documents/' . $filename;
         if (!file_exists($file_path)) show_error('File tidak ditemukan: ' . $filename);
 
-        $data['filename'] = $filename;
+        // Ambil data note dan owner
+        $note = $this->db->get_where('notes', ['file_note' => $filename])->row_array();
+        if (!$note) show_error('Data note tidak ditemukan.');
+
+        $data['filename']   = $filename;
+        $data['note_id']    = $note['id_note'];
+        $data['owner_id']   = $note['created_by'];
+
+        $owner = $this->db->get_where('users', ['id' => $note['created_by']])->row_array();
+        $data['owner_name'] = $owner ? $owner['nama'] : 'Tidak diketahui';
+
         $this->load->view('notes/document_konva', $data);
     }
 
-    
     // ==================================================
     // Canvas kosong
     // ==================================================
@@ -126,6 +161,7 @@ class Notes extends CI_Controller {
         $fp = fopen($path, 'rb');
         fpassthru($fp);
         fclose($fp);
+        readfile($path);
         exit;
     }
 
@@ -196,7 +232,113 @@ class Notes extends CI_Controller {
     }
 
     // ==================================================
-    //  Mini Model Helpers
+    // Simpan & Load Canvas JSON (Konva)
+    // ==================================================
+    public function save_canvas_json($id_note)
+{
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
+
+    if (empty($data['json'])) {
+        echo json_encode(['status' => 'error', 'message' => 'Data kosong']);
+        return;
+    }
+
+    $update = [
+        'canvas_data'  => $data['json'],
+        'updated_date' => date('Y-m-d H:i:s')
+    ];
+
+    $this->db->where('id_note', $id_note);
+    $this->db->update('notes', $update);
+
+    echo json_encode(['status' => 'success']);
+}
+
+public function load_canvas_json($id_note)
+{
+    $note = $this->db->get_where('notes', ['id_note' => $id_note])->row_array();
+
+    if (!$note || empty($note['canvas_data'])) {
+        echo json_encode(['status' => 'empty', 'data' => null]);
+        return;
+    }
+
+    echo json_encode(['status' => 'success', 'data' => json_decode($note['canvas_data'], true)]);
+}
+
+
+    // ==================================================
+    // Bagikan Notes ke Anggota Space
+    // ==================================================
+
+
+    public function share_to_users()
+{
+    $data = json_decode(file_get_contents('php://input'), true);
+    $id_note = $data['id_note'] ?? null;
+    $users = $data['users'] ?? [];
+
+    if (!$id_note || empty($users)) {
+        echo json_encode(['success' => false, 'message' => 'Data tidak lengkap.']);
+        return;
+    }
+
+    $id_user_aktif = $this->session->userdata('id');
+    $workspace_id = $this->session->userdata('workspace_sesi');
+
+    // Validasi apakah note memang milik workspace aktif
+    $note = $this->db->get_where('notes', [
+        'id_note' => $id_note,
+        'id_space_note' => $workspace_id
+    ])->row_array();
+
+    if (!$note) {
+        echo json_encode(['success' => false, 'message' => 'Dokumen tidak ditemukan atau bukan milik workspace ini.']);
+        return;
+    }
+
+    // Simpan data ke tabel notes_share
+    foreach ($users as $user) {
+        $user_id = $user['id'];
+
+        $exists = $this->db->get_where('notes_share', [
+            'id_notes' => $id_note,
+            'id_users' => $user_id
+        ])->num_rows();
+
+        if ($exists == 0) {
+            $this->db->insert('notes_share', [
+                'id_notes' => $id_note,
+                'id_users' => $user_id,
+                'state_note_share' => 'active',
+                'created_by' => $id_user_aktif,
+                'created_date' => date('Y-m-d H:i:s')
+            ]);
+        }
+    }
+
+    echo json_encode(['success' => true]);
+}
+
+
+    // ==================================================
+    // Ambil Anggota Space untuk Dropdown Bagikan
+    // ==================================================
+    public function get_space_members()
+    {
+        $id_space = $this->session->userdata('workspace_sesi');
+        $this->db->select('users.id, users.nama, users.username');
+        $this->db->from('space_team');
+        $this->db->join('users', 'users.id = space_team.id_user');
+        $this->db->where('space_team.id_workspace', $id_space);
+
+        $result = $this->db->get()->result_array();
+        echo json_encode($result);
+    }
+
+    // ==================================================
+    // Helper mini model
     // ==================================================
     private function getNotesBySpace($id_space)
     {
@@ -217,60 +359,4 @@ class Notes extends CI_Controller {
     {
         return $this->db->delete('notes', ['id_note' => $id_note]);
     }
-    
-    
-    // ==================================================
-    // Bagikan Notes ke Anggota Space
-    // ==================================================
-    public function share_note()
-    {
-        $id_note  = $this->input->post('id_note');
-        $selected_users = $this->input->post('users'); // array id user yang dipilih
-        $created_by = $this->session->userdata('id');
-
-        // Pastikan array valid
-        if (!is_array($selected_users)) {
-            $selected_users = [];
-        }
-
-        // Pastikan user juga dibagikan ke dirinya sendiri
-        if (!in_array($created_by, $selected_users)) {
-            $selected_users[] = $created_by;
-        }
-
-        foreach ($selected_users as $user_id) {
-            // Cek apakah sudah ada sebelumnya
-            $exists = $this->db->get_where('notes_share', [
-                'id_users' => $user_id,
-                'id_notes' => $id_note
-            ])->num_rows();
-
-            if ($exists == 0) {
-                $this->db->insert('notes_share', [
-                    'id_users' => $user_id,
-                    'id_notes' => $id_note,
-                    'state_note_share' => 'active'
-                ]);
-            }
-        }
-
-        echo json_encode(['status' => 'success']);
-    } 
-
-
-    // ==================================================
-    // Ambil Anggota Space untuk Dropdown Bagikan
-    // ==================================================
-    public function get_space_members()
-    {
-        $id_space = $this->session->userdata('workspace_sesi');
-        $this->db->select('users.id, users.nama, users.username');
-        $this->db->from('space_team');
-        $this->db->join('users', 'users.id = space_team.id_user');
-        $this->db->where('space_team.id_workspace', $id_space);
-
-        $result = $this->db->get()->result_array();
-        echo json_encode($result);
-    }
-
 }
