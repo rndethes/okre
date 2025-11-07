@@ -25,8 +25,11 @@
   OKRE Sketch
 </h2><div style="color:var(--muted);font-size:13px;margin-left:12px">Canvas Blank</div></div>
       <div class="actions" style="display:flex;gap:10px;align-items:center">
-        <button id="downloadTopBtn" class="top-btn"><i class="fa-solid fa-download"></i>&nbsp;Download</button>
-        <button id="saveTopBtn" class="top-btn"><i class="fa-solid fa-cloud-arrow-up"></i>&nbsp;Simpan</button>
+        <a href="<?= base_url() ?>notes/index/<?= $this->uri->segment(4) ?>/space" id="cancelBtn" class="top-btn">
+        <i class="fa-solid fa-arrow-left"></i> <span class="btn-text">&nbsp;Batalkan</span>
+      </a>
+        <button id="downloadTopBtn" class="top-btn"><i class="fa-solid fa-download"></i><span class="btn-text">&nbsp;Download</span></button>
+        <button id="saveTopBtn" class="top-btn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="btn-text">&nbsp;Simpan</span></button>
       </div>
     </div>
 
@@ -35,13 +38,12 @@
 </div>
 
 <!-- SETTINGS POPUP -->
-<div class="popup" id="settingsPopup" style="position:fixed; left:96px; bottom:84px; display:none; z-index:1200;">
+<div class="popup-sidebar" id="settingsPopup" style="position:fixed; left:96px; bottom:84px; display:none; z-index:1200;">
   <label>Mode tampilan</label>
   <div style="display:flex;gap:8px;margin-bottom:8px;">
     <button class="small-btn" id="themeLightBtn">Light</button>
     <button class="small-btn" id="themeDarkBtn">Dark</button>
   </div>
-  <div style="font-size:13px;color:var(--muted)">Ukuran halaman default: <strong>1080×1350</strong> px</div>
 </div>
 
 <!-- BOTTOM TOOLBAR -->
@@ -57,7 +59,7 @@
 
       <div class="popup-row">
         <label><i class="fa-solid fa-droplet"></i></label>
-        <input type="color" id="colorPicker" value="#ff0000">
+        <input type="color" id="colorPicker" value="#000000ff">
       </div>
 
       <div class="popup-row">

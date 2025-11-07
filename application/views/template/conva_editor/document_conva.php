@@ -4,14 +4,14 @@
 <!-- CONTAINER FOR PAGES -->
 <div id="container" style="width:100%; height:100vh; background:#f5f5f5;"></div>
 
-<!-- Script Konva (pastikan sudah di-load di header_conva) -->
+<!-- Script Konva -->
 <script>
 document.addEventListener("DOMContentLoaded", async function () {
   const baseUrl = window.baseUrl;
   const noteId = window.noteId;
   const pdfUrl = window.pdfUrl;
 
-  // === 1️⃣ Inisialisasi stage Konva ===
+  // === Inisialisasi stage Konva ===
   const stage = new Konva.Stage({
     container: "container",
     width: window.innerWidth,
@@ -21,10 +21,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   const layer = new Konva.Layer();
   stage.add(layer);
 
-  // === 2️⃣ Muat file PDF (optional kalau kamu render PDF.js di layer bawah)
+  // === Muat file PDF
   console.log("Memuat PDF dari:", pdfUrl);
 
-  // === 3️⃣ Muat coretan dari database ===
+  // === Muat coretan dari database ===
   try {
     const res = await fetch(`${baseUrl}notes/load_canvas_json/${noteId}`);
     const result = await res.json();
@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     window.stage = stage;
   }
 
-  // === 4️⃣ Fungsi simpan coretan ke database ===
+  // === Fungsi simpan coretan ke database ===
   async function saveCanvasData() {
     if (!window.stage) return;
     const json = window.stage.toJSON();
@@ -64,16 +64,16 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
-  // === 5️⃣ Tombol Simpan Manual di Topbar ===
+  // === Tombol Simpan Manual di Topbar ===
   const saveServerBtn = document.getElementById("saveServerTopBtn");
   if (saveServerBtn) {
     saveServerBtn.addEventListener("click", saveCanvasData);
   }
 
-  // === 6️⃣ Auto-save tiap 30 detik ===
+  // === Auto-save tiap 30 detik ===
   setInterval(saveCanvasData, 30000);
 
-  // === 7️⃣ Responsive resize ===
+  // === Responsive resize ===
   window.addEventListener("resize", () => {
     if (!window.stage) return;
     window.stage.width(window.innerWidth);

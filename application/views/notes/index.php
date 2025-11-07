@@ -1,3 +1,4 @@
+<!-- ======================== HEADER ======================== -->
 <div class="header bg-dark-primary pb-6">
   <div class="container-fluid">
     <div class="header-body">
@@ -17,6 +18,7 @@
   </div>
 </div>
 
+<!-- ======================== MAIN CONTENT ======================== -->
 <div class="container-fluid mt--6">
   <div class="row">
     <div class="col-xl-12">
@@ -62,7 +64,7 @@
         </div>
       <?php endif; ?>
 
-      <!-- Upload -->
+      <!-- Upload Section -->
       <div class="card mb-4">
         <div class="card-body text-center">
           <h2 class="mb-4">Upload PDF Baru atau Mulai Canvas Kosong</h2>
@@ -107,7 +109,7 @@
         </div>
       </div>
 
-      <!-- Daftar Dokumen -->
+      <!-- ======================== DAFTAR DOKUMEN ======================== -->
       <div class="card">
         <div class="card-body">
           <h4 class="mb-3"><i class="fas fa-file-alt me-2"></i>Daftar Dokumen</h4>
@@ -124,7 +126,23 @@
               </thead>
               <tbody class="list">
                 <?php if(!empty($notes)): foreach($notes as $n): ?>
-                <?php $shared = $n['shared_users'] ?? []; ?>
+                <?php 
+                  $shared = $n['shared_users'] ?? [];
+                  $isOwner = ($n['created_by'] == $this->session->userdata('id'));
+                  $userId  = $this->session->userdata('id');
+                  $role = 'none';
+                  if (!$isOwner) {
+                      $this->db->select('role');
+                      $this->db->where('id_notes', $n['id_note']);
+                      $this->db->where('id_users', $userId);
+                      $this->db->where('state_note_share', 'active');
+                      $share = $this->db->get('notes_share')->row_array();
+                      if ($share) $role = $share['role'];
+                  } else {
+                      $role = 'owner';
+                  }
+                ?>
+
                 <tr>
                   <th scope="row">
                     <div class="media align-items-center">
@@ -156,18 +174,31 @@
                   </td>
 
                   <td class="text-center">
-                    <a href="<?= base_url('notes/view_pdf/'.$n['file_note']) ?>" target="_blank" class="btn btn-sm btn-info rounded-pill me-1" title="Lihat">
-                      <i class="fas fa-eye"></i>
-                    </a>
-                    <a href="<?= base_url('notes/konva/'.$n['file_note'].'/'.$this->session->userdata('workspace_sesi')) ?>" class="btn btn-sm btn-primary rounded-pill me-1" title="Edit">
-                      <i class="fas fa-pen"></i>
-                    </a>
-                    <button class="btn btn-sm btn-success rounded-pill me-1 btnShare" data-id="<?= $n['id_note'] ?>" title="Bagikan">
-                      <i class="fas fa-share"></i>
-                    </button>
-                    <a href="<?= base_url('notes/delete/'.$n['id_note']) ?>" onclick="return confirm('Yakin hapus dokumen ini?')" class="btn btn-sm btn-danger rounded-pill" title="Hapus">
-                      <i class="fas fa-trash"></i>
-                    </a>
+                    <?php if(in_array($role, ['owner','editor','viewer'])): ?>
+                      <a href="<?= base_url('notes/view_pdf/'.$n['file_note']) ?>" target="_blank"
+                         class="btn btn-sm btn-info rounded-pill me-1" title="Lihat">
+                        <i class="fas fa-eye"></i>
+                      </a>
+                    <?php endif; ?>
+
+                    <?php if(in_array($role, ['owner','editor'])): ?>
+                      <a href="<?= base_url('notes/konva/'.$n['file_note'].'/'.$this->session->userdata('workspace_sesi')) ?>"
+                         class="btn btn-sm btn-primary rounded-pill me-1" title="Edit">
+                        <i class="fas fa-pen"></i>
+                      </a>
+                    <?php endif; ?>
+
+                    <?php if($role == 'owner'): ?>
+                      <button class="btn btn-sm btn-success rounded-pill me-1 btnShare"
+                              data-id="<?= $n['id_note'] ?>" title="Bagikan">
+                        <i class="fas fa-share"></i>
+                      </button>
+                      <a href="<?= base_url('notes/delete/'.$n['id_note']) ?>"
+                         onclick="return confirm('Yakin hapus dokumen ini?')"
+                         class="btn btn-sm btn-danger rounded-pill" title="Hapus">
+                        <i class="fas fa-trash"></i>
+                      </a>
+                    <?php endif; ?>
                   </td>
                 </tr>
                 <?php endforeach; else: ?>
@@ -203,7 +234,7 @@
           <select id="userSelect" class="form-select">
             <option value="">-- Pilih pengguna --</option>
             <?php foreach ($space_members as $member): ?>
-              <?php if ($member['id'] != $this->session->userdata('id_user')): ?>
+              <?php if ($member['id'] != $this->session->userdata('id')): ?>
                 <option value="<?= $member['id'] ?>"><?= $member['nama'] ?></option>
               <?php endif; ?>
             <?php endforeach; ?>
@@ -230,13 +261,17 @@
   </div>
 </div>
 
+<style>
+#sharedUserList .list-group-item { margin-bottom: 5px; }
+</style>
+
+<!-- ===================== SCRIPT BAGIKAN ===================== -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const shareModal = new bootstrap.Modal(document.getElementById('shareModal'));
   let noteId = null;
   let sharedUsers = [];
 
-  // buka modal dan set ID dokumen
   document.querySelectorAll('.btnShare').forEach(btn => {
     btn.addEventListener('click', function() {
       noteId = this.dataset.id;
@@ -248,7 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // tambah user sementara ke list
   document.getElementById('btnAddShare').addEventListener('click', function() {
     const userSelect = document.getElementById('userSelect');
     const roleSelect = document.getElementById('roleSelect');
@@ -260,7 +294,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!sharedUsers.find(u => u.id == userId)) {
       sharedUsers.push({ id: userId, name: userName, role });
-
       const list = document.getElementById('sharedUserList');
       if (list.children[0].classList.contains('text-muted')) list.innerHTML = '';
 
@@ -285,7 +318,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // simpan ke server
   document.getElementById('btnSaveShare').addEventListener('click', function() {
     if (sharedUsers.length === 0) return alert('Belum ada pengguna untuk dibagikan.');
 
@@ -311,8 +343,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-
-
 
 <!-- Tooltip Bootstrap -->
 <script>

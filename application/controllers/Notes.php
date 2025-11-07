@@ -23,7 +23,7 @@ class Notes extends CI_Controller {
         }
 
         $data['space'] = $this->Space_model->getWorkspaceById($id_space);
-        $data['notes'] = $this->getNotesBySpace($id_space);
+        $data['notes'] = $this->getNotesAccessibleByUser($id_space);
         $data['space_members'] = $this->getSpaceMembers($id_space);
         $data['title'] = 'Sketch / Notes';
 
@@ -38,13 +38,37 @@ class Notes extends CI_Controller {
         $this->load->view('template/footer');
     }
 
-    // ======== Ambil Notes + User yang Dibagikan ========
-private function getNotesWithShares($id_space)
+ // ==================================================
+    // Ambil Notes yang bisa diakses user
+    // ==================================================
+    private function getNotesAccessibleByUser($id_space)
 {
-    $notes = $this->db->get_where('notes', ['id_space_note' => $id_space])->result_array();
+    $id_user = $this->session->userdata('id');
 
+    // ===== Subquery untuk note yang dibagikan ke user ini =====
+    $subQuery = $this->db->select('id_notes')
+        ->from('notes_share')
+        ->where('id_users', $id_user)
+        ->where('state_note_share', 'active')
+        ->get_compiled_select();
+
+    // Penting: reset builder biar query utama nggak kacau
+    $this->db->reset_query();
+
+    // ===== Query utama =====
+    $this->db->select('*');
+    $this->db->from('notes');
+    $this->db->where('id_space_note', $id_space);
+    $this->db->group_start();
+    $this->db->where('created_by', $id_user);
+    $this->db->or_where("id_note IN ($subQuery)", null, false);
+    $this->db->group_end();
+
+    $notes = $this->db->get()->result_array();
+
+    // ===== Tambahkan daftar user yang dibagikan =====
     foreach ($notes as &$note) {
-        $this->db->select('users.id, users.nama');
+        $this->db->select('users.id, users.nama, notes_share.role');
         $this->db->from('notes_share');
         $this->db->join('users', 'users.id = notes_share.id_users');
         $this->db->where('notes_share.id_notes', $note['id_note']);
@@ -53,6 +77,7 @@ private function getNotesWithShares($id_space)
 
     return $notes;
 }
+
 
 // ======== Ambil Anggota Space ========
 private function getSpaceMembers($id_space)
@@ -110,25 +135,26 @@ private function getSpaceMembers($id_space)
     // Editor Konva (PDF + Coretan)
     // ==================================================
     public function konva($filename = null)
-    {
-        if (!$filename) redirect('notes/index/' . $this->session->userdata('workspace_sesi'));
+{
+    if (!$filename) redirect('notes/index/' . $this->session->userdata('workspace_sesi'));
 
-        $file_path = FCPATH . 'uploads/documents/' . $filename;
-        if (!file_exists($file_path)) show_error('File tidak ditemukan: ' . $filename);
+    $note = $this->db->get_where('notes', ['file_note' => $filename])->row_array();
+    if (!$note) show_error('Data note tidak ditemukan.');
 
-        // Ambil data note dan owner
-        $note = $this->db->get_where('notes', ['file_note' => $filename])->row_array();
-        if (!$note) show_error('Data note tidak ditemukan.');
+    $id_user = $this->session->userdata('id');
+    $access = $this->getUserAccess($note['id_note'], $id_user);
 
-        $data['filename']   = $filename;
-        $data['note_id']    = $note['id_note'];
-        $data['owner_id']   = $note['created_by'];
-
-        $owner = $this->db->get_where('users', ['id' => $note['created_by']])->row_array();
-        $data['owner_name'] = $owner ? $owner['nama'] : 'Tidak diketahui';
-
-        $this->load->view('notes/document_konva', $data);
+    if (!$access['has_access']) {
+        show_error('Anda tidak memiliki akses ke dokumen ini.', 403, 'Akses Ditolak');
     }
+
+    $data['readonly'] = ($access['role'] === 'viewer');
+    $data['role'] = $access['role'];
+    $data['filename'] = $filename;
+    $data['note_id']  = $note['id_note'];
+
+    $this->load->view('notes/document_konva', $data);
+}
 
     // ==================================================
     // Canvas kosong
@@ -220,37 +246,48 @@ private function getSpaceMembers($id_space)
     // Hapus Dokumen
     // ==================================================
     public function delete($id)
-    {
-        $note = $this->getNoteById($id);
-        if ($note) {
-            $file_path = FCPATH . 'uploads/documents/' . $note['file_note'];
-            if (file_exists($file_path)) unlink($file_path);
-            $this->deleteNote($id);
-        }
+{
+    $note = $this->db->get_where('notes', ['id_note' => $id])->row_array();
+    $id_user = $this->session->userdata('id');
 
-        redirect('notes/index/' . $this->session->userdata('workspace_sesi'));
+    // hanya owner
+    if ($note && $note['created_by'] == $id_user) {
+        $path = FCPATH . 'uploads/documents/' . $note['file_note'];
+        if (file_exists($path)) unlink($path);
+        $this->db->delete('notes', ['id_note' => $id]);
+    } else {
+        show_error('Anda tidak berhak menghapus dokumen ini.', 403, 'Akses Ditolak');
     }
+
+    redirect('notes/index/' . $this->session->userdata('workspace_sesi'));
+}
+
 
     // ==================================================
     // Simpan & Load Canvas JSON (Konva)
     // ==================================================
-    public function save_canvas_json($id_note)
+   public function save_canvas_json($id_note)
 {
+    $id_user = $this->session->userdata('id');
+    $access = $this->getUserAccess($id_note, $id_user);
+
+    // hanya owner/editor
+    if (!$access['has_access'] || !in_array($access['role'], ['owner', 'editor'])) {
+        echo json_encode(['status' => 'error', 'message' => 'Anda tidak memiliki izin untuk menyimpan coretan.']);
+        return;
+    }
+
     $raw = file_get_contents('php://input');
     $data = json_decode($raw, true);
-
     if (empty($data['json'])) {
         echo json_encode(['status' => 'error', 'message' => 'Data kosong']);
         return;
     }
 
-    $update = [
+    $this->db->where('id_note', $id_note)->update('notes', [
         'canvas_data'  => $data['json'],
         'updated_date' => date('Y-m-d H:i:s')
-    ];
-
-    $this->db->where('id_note', $id_note);
-    $this->db->update('notes', $update);
+    ]);
 
     echo json_encode(['status' => 'success']);
 }
@@ -311,6 +348,7 @@ public function load_canvas_json($id_note)
             $this->db->insert('notes_share', [
                 'id_notes' => $id_note,
                 'id_users' => $user_id,
+                'role' => $user['role'], // viewer / editor
                 'state_note_share' => 'active',
                 'created_by' => $id_user_aktif,
                 'created_date' => date('Y-m-d H:i:s')
@@ -337,26 +375,30 @@ public function load_canvas_json($id_note)
         echo json_encode($result);
     }
 
-    // ==================================================
-    // Helper mini model
-    // ==================================================
-    private function getNotesBySpace($id_space)
-    {
-        return $this->db->get_where('notes', ['id_space_note' => $id_space])->result_array();
+// ==================================================
+// Cek akses user terhadap note
+// ==================================================
+private function getUserAccess($id_note, $id_user)
+{
+    $note = $this->db->get_where('notes', ['id_note' => $id_note])->row_array();
+    if (!$note) return ['has_access' => false, 'role' => null];
+
+    // Owner selalu punya akses penuh
+    if ($note['created_by'] == $id_user) {
+        return ['has_access' => true, 'role' => 'owner'];
     }
 
-    private function insertNotes($data)
-    {
-        return $this->db->insert('notes', $data);
+    // Cek apakah user dibagikan
+    $share = $this->db->get_where('notes_share', [
+        'id_notes' => $id_note,
+        'id_users' => $id_user,
+        'state_note_share' => 'active'
+    ])->row_array();
+
+    if ($share) {
+        return ['has_access' => true, 'role' => $share['role']];
     }
 
-    private function getNoteById($id_note)
-    {
-        return $this->db->get_where('notes', ['id_note' => $id_note])->row_array();
-    }
-
-    private function deleteNote($id_note)
-    {
-        return $this->db->delete('notes', ['id_note' => $id_note]);
-    }
+    return ['has_access' => false, 'role' => null];
+}
 }

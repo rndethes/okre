@@ -52,3 +52,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 $route['default_controller'] = 'auth';
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
+// ====== ROUTES UNTUK NOTES ======
+$route['notes/save_canvas_json/(:num)'] = 'notes/save_canvas_json/$1';
+$route['notes/load_canvas_json/(:num)'] = 'notes/load_canvas_json/$1';
+$route['notes/share_to_users'] = 'notes/share_to_users';

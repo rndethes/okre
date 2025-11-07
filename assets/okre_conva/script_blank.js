@@ -1,18 +1,24 @@
 /* ========== Konfigurasi ========== */
 const DEFAULT_W = 1080;
 const DEFAULT_H = 1350;
+const ZOOM_LEVELS = [0.5, 0.75, 0.9, 1.0, 1.25, 1.5, 2.0];
+const DEFAULT_ZOOM_INDEX = ZOOM_LEVELS.indexOf(1.0);
 const container = document.getElementById("container");
 const previewPanel = document.getElementById("previewPanel");
 let pages = []; // array of {pageEl, baseCanvas, drawCanvas, state}
+let pageStates = [];
 let currentZoom = 1.0;
-const zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const zoomLevels = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+let currentZoomIndex = DEFAULT_ZOOM_INDEX; // default 1.0
+let previousScale = zoomLevels[currentZoomIndex] || 1.0;
 let zoomIdx = 2;
 let panMode = false;
 let tool = "brush";
-let color = "#ff0000";
+let color = "#000000ff";
 let size = 4;
 
 /* UI elements */
+const zoomPercentLabel = document.getElementById("zoomPercent");
 const addPageBtn = document.getElementById("addPageBtn");
 const undoBtn = document.getElementById("btnUndo");
 const redoBtn = document.getElementById("btnRedo");
@@ -20,11 +26,62 @@ const colorPicker = document.getElementById("colorPicker");
 const colorPicker2 = document.getElementById("colorPicker2");
 const sizePicker = document.getElementById("sizePicker");
 const drawModeSelect = document.getElementById("drawMode");
+const quickBrush = document.getElementById("quickBrush");
+const quickEraser = document.getElementById("quickEraser");
 const zoomPercent = document.getElementById("zoomPercent");
+const panToggleBtn = document.getElementById("panToggleBtn");
+const btnClear = document.getElementById("btnClear");
+const settingsBtn = document.getElementById("settingsBtn");
+
+const toolButtons = [quickBrush, quickEraser];
+
+function setActiveTool(selectedTool) {
+  tool = selectedTool;
+  if (panMode) {
+    setPanMode(false); // Matikan pan mode (dan cursor grab)
+  }
+  toolButtons.forEach((btn) => {
+    if (btn.id.toLowerCase().includes(selectedTool)) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  });
+
+  let newCursor = "default"; // Default-nya panah
+
+  document.querySelectorAll(".draw-layer").forEach((c) => {
+    c.style.cursor = newCursor;
+  });
+  console.log("VEX: Alat diubah ke ->", tool);
+}
+
+function setPanMode(enabled) {
+  panMode = enabled;
+  panToggleBtn?.classList.toggle("active", panMode);
+
+  if (container) {
+    // !! PERBAIKAN KURSOR !!
+    // Container (area abu-abu) SEKARANG HANYA 'grab' atau 'default' (panah)
+    container.style.cursor = panMode ? "grab" : "default";
+    container.style.touchAction = "auto";
+  }
+
+  // atur canvas pointer events
+  document.querySelectorAll(".page canvas.draw-layer").forEach((c) => {
+    c.style.pointerEvents = panMode ? "none" : "auto";
+  });
+  document.querySelectorAll(".page canvas:not(.draw-layer)").forEach((c) => {
+    c.style.pointerEvents = enabled ? "none" : "auto";
+  });
+}
 
 /* helpers */
+
 function updateZoomLabel() {
-  zoomPercent.textContent = Math.round(currentZoom * 100) + "%";
+  if (!zoomPercentLabel) return;
+  const pct = Math.round((zoomLevels[currentZoomIndex] / zoomLevels[2]) * 100);
+  zoomPercentLabel.textContent = pct + "%";
 }
 
 function createPage(index, restoreDataURL) {
@@ -136,6 +193,11 @@ function enableDrawing(drawCanvas, pageIndex) {
     hasDraw = false;
     last = getPointerPos(drawCanvas, e);
     saveSnapshot();
+
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("touchend", end);
   }
 
   function move(e) {
@@ -163,14 +225,20 @@ function enableDrawing(drawCanvas, pageIndex) {
       } catch (e) {}
       updateThumbnailForIndex(pageIndex);
     }
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", end);
+    window.removeEventListener("touchmove", move);
+    window.removeEventListener("touchend", end);
   }
+  // drawCanvas.addEventListener("mousedown", start);
+  // drawCanvas.addEventListener("mousemove", move);
+  // drawCanvas.addEventListener("mouseup", end);
+  // drawCanvas.addEventListener("mouseout", end);
+  // drawCanvas.addEventListener("touchstart", start, { passive: false });
+  // drawCanvas.addEventListener("touchmove", move, { passive: false });
+  // drawCanvas.addEventListener("touchend", end);
   drawCanvas.addEventListener("mousedown", start);
-  drawCanvas.addEventListener("mousemove", move);
-  drawCanvas.addEventListener("mouseup", end);
-  drawCanvas.addEventListener("mouseout", end);
   drawCanvas.addEventListener("touchstart", start, { passive: false });
-  drawCanvas.addEventListener("touchmove", move, { passive: false });
-  drawCanvas.addEventListener("touchend", end);
   drawCanvas._doUndo = function () {
     if (!s.undoStack.length) return;
     const prev = s.undoStack.pop();
@@ -322,64 +390,127 @@ function getFocusedDrawCanvas() {
 }
 
 /* clear all */
-document.getElementById("btnClear").addEventListener("click", () => {
-  pages.forEach((p, i) => {
-    p.drawCanvas
-      .getContext("2d")
-      .clearRect(0, 0, p.drawCanvas.width, p.drawCanvas.height);
-    p.state.dataURL = null;
-    p.state.undoStack = [];
-    p.state.redoStack = [];
-    updateThumbnailForIndex(i);
-  });
-  alert("✅ Semua coretan dihapus.");
+btnClear?.addEventListener("click", () => {
+  // 1. Tampilkan dialog konfirmasi DULU
+  Swal.fire({
+    title: "Hapus Semua Coretan?",
+    text: "Anda yakin ingin membersihkan semua halaman?",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#d33", // Merah untuk tombol hapus
+    cancelButtonColor: "#3085d6",
+    confirmButtonText: "Ya, Hapus Semua!",
+    cancelButtonText: "Batal",
+  }).then((result) => {
+    // 2. Hanya jalankan jika pengguna menekan "Ya"
+    if (result.isConfirmed) {
+      // 3. PINDAHKAN SEMUA LOGIKA LAMA ANDA KE SINI
+      document.querySelectorAll("canvas.draw-layer").forEach((c, i) => {
+        const ctx = c.getContext("2d");
+        if (pages[i]) {
+          try {
+            // (Mencadangkan ke undo stack sebelum menghapus)
+            const snap = c.toDataURL();
+            pages[i].undoStack.push(snap);
+            if (pages[i].undoStack.length > 30) pages[i].undoStack.shift();
+          } catch (err) {
+            console.error(err);
+          }
+          ctx.clearRect(0, 0, c.width, c.height);
+          pages[i].dataURL = null;
+          pages[i].redoStack = [];
+          requestIdleCallback(() => updateThumbnail(i));
+        }
+      }); // Akhir dari forEach
+
+      // 4. Ganti 'alert()' dengan notifikasi sukses SweetAlert
+      Swal.fire({
+        title: "Dihapus!",
+        text: "Semua coretan telah dibersihkan.",
+        icon: "success",
+        timer: 1500, // Notifikasi hilang setelah 1.5 detik
+        showConfirmButton: false,
+      });
+    }
+  }); // Akhir dari .then()
 });
 
-/* zoom/pan */
-document.getElementById("zoomInBtn").addEventListener("click", () => {
-  if (zoomIdx < zoomLevels.length - 1) {
-    saveAllDrawStates();
-    zoomIdx++;
-    currentZoom = zoomLevels[zoomIdx];
-    rescaleAll();
-    updateZoomLabel();
+document.addEventListener("DOMContentLoaded", () => {
+  const btnDraw = document.getElementById("btnDraw");
+  const popupDraw = document.getElementById("popupDraw");
+  btnDraw.addEventListener("click", (e) => {
+    e.stopPropagation();
+    togglePopup(popupDraw);
+  });
+
+  popupDraw.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  const popupZoom = document.getElementById("popupZoom");
+  if (popupZoom) {
+    popupZoom.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
   }
-});
-document.getElementById("zoomOutBtn").addEventListener("click", () => {
-  if (zoomIdx > 0) {
-    saveAllDrawStates();
-    zoomIdx--;
-    currentZoom = zoomLevels[zoomIdx];
-    rescaleAll();
-    updateZoomLabel();
+
+  const settingsPopup = document.getElementById("settingsPopup");
+  if (settingsPopup) {
+    settingsPopup.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
   }
-});
-document.getElementById("fitBtn").addEventListener("click", () => {
-  // fit width logic
-  const viewportWidth = container.clientWidth - 60;
-  const ratio = viewportWidth / DEFAULT_W;
-  let best = 0,
-    bdiff = Infinity;
-  zoomLevels.forEach((z, i) => {
-    const d = Math.abs(z - ratio);
-    if (d < bdiff) {
-      bdiff = d;
-      best = i;
+
+  /* zoom/pan */
+  document.getElementById("zoomInBtn").addEventListener("click", () => {
+    if (currentZoomIndex < ZOOM_LEVELS.length - 1) {
+      saveAllDrawStates();
+      currentZoomIndex++; // Ganti dari zoomIdx
+      currentZoom = ZOOM_LEVELS[currentZoomIndex]; // Ganti dari zoomLevels
+      rescaleAll();
+      updateZoomLabel();
     }
   });
-  saveAllDrawStates();
-  zoomIdx = best;
-  currentZoom = zoomLevels[zoomIdx];
-  rescaleAll();
-  updateZoomLabel();
+  document.getElementById("zoomOutBtn").addEventListener("click", () => {
+    if (currentZoomIndex > 0) {
+      saveAllDrawStates();
+      currentZoomIndex--; // Ganti dari zoomIdx
+      currentZoom = ZOOM_LEVELS[currentZoomIndex]; // Ganti dari zoomLevels
+      rescaleAll();
+      updateZoomLabel();
+    }
+  });
+  document.getElementById("fitBtn").addEventListener("click", () => {
+    // fit width logic
+    const viewportWidth = container.clientWidth - 60;
+    const ratio = viewportWidth / DEFAULT_W;
+    let best = 0,
+      bdiff = Infinity;
+
+    // Gunakan 'ZOOM_LEVELS'
+    ZOOM_LEVELS.forEach((z, i) => {
+      const d = Math.abs(z - ratio);
+      if (d < bdiff) {
+        bdiff = d;
+        best = i;
+      }
+    });
+
+    saveAllDrawStates();
+    currentZoomIndex = best; // Ganti dari zoomIdx
+    currentZoom = ZOOM_LEVELS[currentZoomIndex]; // Ganti dari zoomLevels
+    rescaleAll();
+    updateZoomLabel();
+  });
 });
 
-document.getElementById("panToggleBtn").addEventListener("click", () => {
-  panMode = !panMode;
-  document.getElementById("panToggleBtn").textContent =
-    "Pan: " + (panMode ? "ON" : "OFF");
-  container.style.cursor = panMode ? "grab" : "default";
-});
+// document.getElementById("panToggleBtn").addEventListener("click", () => {
+//   panMode = !panMode;
+//   document.getElementById("panToggleBtn").textContent =
+//     "Pan: " + (panMode ? "ON" : "OFF");
+//   container.style.cursor = panMode ? "grab" : "default";
+// });
+panToggleBtn?.addEventListener("click", () => setPanMode(!panMode));
 let isPanning = false,
   startPan = { x: 0, y: 0 },
   scrollStart = { x: 0, y: 0 };
@@ -426,12 +557,13 @@ function rescaleAll() {
     pageDiv.style.background = "white";
     pageDiv.style.transformOrigin = "top center";
     pageDiv.style.transition = "transform 0.2s ease";
+    pageDiv.style.transform = `scale(${currentZoom})`;
 
     const base = document.createElement("canvas");
     base.width = DEFAULT_W;
     base.height = DEFAULT_H;
-    base.style.width = DEFAULT_W * currentZoom + "px";
-    base.style.height = DEFAULT_H * currentZoom + "px";
+    base.style.width = "100%";
+    base.style.height = "100%";
     const bctx = base.getContext("2d");
     bctx.fillStyle = "#ffffff";
     bctx.fillRect(0, 0, base.width, base.height);
@@ -444,8 +576,8 @@ function rescaleAll() {
     draw.style.position = "absolute";
     draw.style.left = "0";
     draw.style.top = "0";
-    draw.style.width = DEFAULT_W * currentZoom + "px";
-    draw.style.height = DEFAULT_H * currentZoom + "px";
+    draw.style.width = "100%";
+    draw.style.height = "100%";
     pageDiv.appendChild(draw);
 
     container.appendChild(pageDiv);
@@ -492,15 +624,26 @@ document.querySelectorAll(".color-swatch").forEach((s) =>
   })
 );
 sizePicker.addEventListener("input", (e) => (size = Number(e.target.value)));
-// drawModeSelect.addEventListener("change", (e) => (tool = e.target.value));
-// document.getElementById("quickBrush").addEventListener("click", () => {
-//   tool = "brush";
-//   drawModeSelect.value = "brush";
-// });
-// document.getElementById("quickEraser").addEventListener("click", () => {
-//   tool = "eraser";
-//   drawModeSelect.value = "eraser";
-// });
+
+quickBrush?.addEventListener("click", () => {
+  tool = "brush";
+  if (drawModeSelect) drawModeSelect.value = "brush";
+  setActiveTool("brush");
+  colorPicker.value = color;
+  sizePicker.value = size;
+});
+quickEraser?.addEventListener("click", () => {
+  tool = "eraser";
+  if (drawModeSelect) drawModeSelect.value = "eraser";
+  setActiveTool("eraser");
+});
+colorPicker?.addEventListener("change", (e) => {
+  color = e.target.value;
+  if (colorPicker2) colorPicker2.value = color;
+});
+sizePicker?.addEventListener("input", (e) => {
+  size = Number(e.target.value);
+});
 
 /* thumbnails + add page interactions */
 addPageBtn.addEventListener("click", () => addNewPage());
@@ -542,151 +685,34 @@ async function generatePdfBytes() {
   }
   return await pdfDoc.save();
 }
-
-// document.getElementById("savePdfBtn").addEventListener("click", async () => {
-//   try {
-//     const bytes = await generatePdfBytes();
-//     const blob = new Blob([bytes], { type: "application/pdf" });
-//     const a = document.createElement("a");
-//     a.href = URL.createObjectURL(blob);
-//     a.download = "canvas_annotated.pdf";
-//     a.click();
-//     alert("✅ PDF siap diunduh.");
-//   } catch (e) {
-//     console.error(e);
-//     alert("Gagal membangun PDF");
-//   }
-// });
-
-/* download JPG */
-// document.getElementById("downloadJpgBtn").addEventListener("click", () => {
-//   const choice = prompt("Pilih halaman (mis: 1,3 atau all)");
-//   if (!choice) return;
-//   if (choice.toLowerCase() === "all") {
-//     const canvases = pages.map((p) => {
-//       const tmp = document.createElement("canvas");
-//       tmp.width = p.baseCanvas.width;
-//       tmp.height = p.baseCanvas.height;
-//       const ctx = tmp.getContext("2d");
-//       ctx.drawImage(p.baseCanvas, 0, 0);
-//       ctx.drawImage(p.drawCanvas, 0, 0);
-//       return tmp;
-//     }); // merge vertically
-//     const final = document.createElement("canvas");
-//     final.width = Math.max(...canvases.map((c) => c.width));
-//     final.height = canvases.reduce((s, c) => s + c.height, 0);
-//     const fctx = final.getContext("2d");
-//     let y = 0;
-//     canvases.forEach((c) => {
-//       fctx.drawImage(c, 0, y);
-//       y += c.height;
-//     });
-//     const a = document.createElement("a");
-//     a.href = final.toDataURL("image/jpeg", 0.9);
-//     a.download = "all_pages.jpg";
-//     a.click();
-//     alert("✅ Semua halaman diunduh sebagai JPG");
-//     return;
-//   } else {
-//     const parts = choice
-//       .split(",")
-//       .map((x) => parseInt(x.trim(), 10))
-//       .filter((n) => !isNaN(n));
-//     for (const n of parts) {
-//       if (n < 1 || n > pages.length) continue;
-//       const p = pages[n - 1];
-//       const tmp = document.createElement("canvas");
-//       tmp.width = p.baseCanvas.width;
-//       tmp.height = p.baseCanvas.height;
-//       const ctx = tmp.getContext("2d");
-//       ctx.drawImage(p.baseCanvas, 0, 0);
-//       ctx.drawImage(p.drawCanvas, 0, 0);
-//       const a = document.createElement("a");
-//       a.href = tmp.toDataURL("image/jpeg", 0.9);
-//       a.download = "page_" + n + ".jpg";
-//       a.click();
-//     }
-//     alert("✅ Halaman JPG berhasil diunduh.");
-//   }
-// });
-
-// /* save to server */
-// document.getElementById("saveServerBtn").addEventListener("click", async () => {
-//   try {
-//     const bytes = await generatePdfBytes();
-//     const blob = new Blob([bytes], { type: "application/pdf" });
-//     const form = new FormData();
-//     form.append("pdf_file", blob, "annotated_" + Date.now() + ".pdf");
-//     const res = await fetch("index.php/document/save_canvas", {
-//       method: "POST",
-//       body: form,
-//     });
-//     const json = await res.json();
-//     if (json && json.status === "success")
-//       alert("✅ PDF tersimpan: " + json.file);
-//     else alert("❌ Gagal simpan ke server");
-//   } catch (e) {
-//     console.error(e);
-//     alert("⚠️ Error simpan ke server");
-//   }
-// });
-
-/* popup toggles */
-function hideAllPopups() {
-  document
-    .querySelectorAll(".popup")
-    .forEach((p) => p.classList.remove("show"));
-  document
-    .querySelectorAll(".tool-btn")
-    .forEach((b) => b.classList.remove("active"));
+function setThemeLight() {
+  document.getElementById("appRoot")?.classList.remove("theme-dark");
+  document.documentElement.style.setProperty("--blue-500", "#1976d2");
+  document.documentElement.style.setProperty("--blue-600", "#1565c0");
+  document.documentElement.style.setProperty(
+    "--sidebar-bg",
+    "linear-gradient(180deg,var(--card),#f0f7ff)"
+  );
 }
-document.querySelectorAll(".tool-btn").forEach((btn) => {
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const popup = btn.querySelector(".popup");
-    if (!popup) {
-      if (btn.id === "btnClear") {
-        document.getElementById("btnClear").click();
-        return;
-      }
-      return;
-    }
-    const isShown = popup.classList.contains("show");
-    hideAllPopups();
-    if (!isShown) {
-      popup.classList.add("show");
-      btn.classList.add("active");
-    }
-  });
-});
-document.addEventListener("click", () => hideAllPopups());
-document
-  .querySelectorAll(".popup")
-  .forEach((p) => p.addEventListener("click", (e) => e.stopPropagation()));
+function setThemeDark() {
+  document.getElementById("appRoot")?.classList.add("theme-dark");
+}
 
-/* settings popup */
-const settingsBtn = document.getElementById("settingsBtn");
-const settingsPopup = document.getElementById("settingsPopup");
-settingsBtn.addEventListener("click", (e) => {
+settingsBtn?.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (!settingsPopup) return;
   settingsPopup.style.display =
     settingsPopup.style.display === "block" ? "none" : "block";
 });
-document.addEventListener(
-  "click",
-  () => (settingsPopup.style.display = "none")
-);
-settingsPopup.addEventListener("click", (e) => e.stopPropagation());
-document
-  .getElementById("themeDarkBtn")
-  .addEventListener("click", () =>
-    document.documentElement.classList.add("theme-dark")
-  );
+settingsPopup?.addEventListener("click", (e) => e.stopPropagation());
+themeLightBtn?.addEventListener("click", setThemeLight);
+themeDarkBtn?.addEventListener("click", setThemeDark);
 
 /* init: create two pages */
 (function init() {
   createPage(0);
   updateZoomLabel();
+  setActiveTool("brush");
 })();
 
 /* utilities */

@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const role = roleSelect.value;
     if (!userId) return alert('Pilih pengguna terlebih dahulu!');
 
-    // Cek duplikat
+    
     if (document.querySelector(`#sharedUserList li[data-user-id="${userId}"]`)) {
       alert('Pengguna sudah ditambahkan.');
       return;
