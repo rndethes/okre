@@ -532,8 +532,14 @@ canvas,
 @media (max-width: 600px) {
   .bottom-toolbar {
     width: 90vw;
-    left: auto; /* (100% - 90%) / 2 */
+    left: auto;
     transform: none !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .bottom-toolbar::-webkit-scrollbar {
+    display: none;
   }
 
   .popup {
@@ -545,8 +551,10 @@ canvas,
     bottom: auto;
     transform: translate(-50%, -50%);
   }
+
   .tool-btn {
     margin: 5px;
+    flex-shrink: 0;
   }
   .top-btn .btn-text {
     display: none;
@@ -558,7 +566,7 @@ canvas,
   }
 
   #downloadTopBtn {
-    padding-right: 10px; /* Beri sedikit ruang untuk ikon caret-down */
+    padding-right: 10px;
   }
 }
 
