@@ -115,8 +115,8 @@ function setActiveTool(selectedTool) {
     touchToggleBtn.style.opacity = "1";
     touchToggleBtn.classList.toggle("active", allowTouchDrawing);
     touchToggleIcon.className = allowTouchDrawing
-      ? "fa-solid fa-hand-point-up"
-      : "fa-solid fa-hand-point-up";
+      ? "fa-solid fa-hand-point-up" // (true) Ikon Jari
+      : "fa-solid fa-pen-nib";
     touchToggleBtn.title = allowTouchDrawing
       ? "Mode Coretan Jari (Aktif)"
       : "Mode Pen Saja (Palm Rejection Aktif)";
@@ -256,13 +256,26 @@ function enableDrawing(drawCanvas, pageIndex) {
       s.redoStack = [];
     } catch (e) {}
   }
+  function getPointerPos(canvas, e) {
+    const rect = canvas.getBoundingClientRect();
+    // FIX: 'e.touches' tidak lagi diperlukan, 'e' adalah event pointer
+    const t = e;
+    return {
+      x: (t.clientX - rect.left) * (canvas.width / rect.width),
+      y: (t.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
 
   function start(e) {
     if (currentTool === "pan") {
       return;
     }
 
-    if (e.pointerType === "touch" && !allowTouchDrawing) {
+    if (
+      currentTool === "brush" && // JIKA alatnya kuas
+      e.pointerType === "touch" && // DAN inputnya sentuh
+      !allowTouchDrawing // DAN Pen Mode aktif
+    ) {
       return; // Abaikan sentuhan
     }
 
@@ -274,12 +287,12 @@ function enableDrawing(drawCanvas, pageIndex) {
 
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
-    try {
-      drawCanvas.setPointerCapture(e.pointerId);
-    } catch (err) {}
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("pointerleave", end);
+    drawCanvas.setPointerCapture?.(e.pointerId);
   }
 
-  drawCanvas.addEventListener("pointerdown", start);
+  drawCanvas.addEventListener("pointerdown", start, { passive: false });
 
   function move(e) {
     if (!drawing || panMode) return;
@@ -306,13 +319,14 @@ function enableDrawing(drawCanvas, pageIndex) {
       } catch (e) {}
       updateThumbnailForIndex(pageIndex);
     }
-    window.removeEventListener("mousemove", move);
-    window.removeEventListener("mouseup", end);
-    window.removeEventListener("touchmove", move);
-    window.removeEventListener("touchend", end);
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end); // (Menangani 'cancel')
+    window.removeEventListener("pointerleave", end); // (Menangani 'leave')
+    drawCanvas.releasePointerCapture?.(e.pointerId);
   }
-  drawCanvas.addEventListener("mousedown", start);
-  drawCanvas.addEventListener("touchstart", start, { passive: false });
+  // drawCanvas.addEventListener("mousedown", start);
+  // drawCanvas.addEventListener("touchstart", start, { passive: false });
   drawCanvas._doUndo = function () {
     if (!s.undoStack.length) return;
     const prev = s.undoStack.pop();

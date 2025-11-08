@@ -85,7 +85,7 @@
         <div id="zoomPercent" style="min-width:56px;text-align:center;font-weight:600">100%</div>
         <button class="small-btn" id="zoomInBtn"><i class="fa-solid fa-plus"></i></button>
       </div>
-      <div style="height:6px"></div>
+      <div style="height:2px"></div>
       <button class="small-btn" id="fitBtn" title="Fit Width"><i class="fa-solid fa-expand"></i></button>
     </div>
   </div>

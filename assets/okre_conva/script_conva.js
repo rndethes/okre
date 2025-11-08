@@ -133,8 +133,6 @@
     });
 
     if (isPan) {
-      // touchToggleBtn.style.pointerEvents = "none"; // <-- Ganti dari 'disabled'
-      // touchToggleBtn.style.opacity = "0.5";
       touchToggleBtn.classList.remove("active");
       touchToggleIcon.className = "fa-solid fa-hand-sparkles";
     } else {
@@ -143,7 +141,7 @@
       touchToggleBtn.classList.toggle("active", allowTouchDrawing);
       touchToggleIcon.className = allowTouchDrawing
         ? "fa-solid fa-hand-point-up"
-        : "fa-solid fa-hand-point-up";
+        : "fa-solid fa-pen-nib";
       touchToggleBtn.title = allowTouchDrawing
         ? "Mode Coretan Jari (Aktif)"
         : "Mode Pen Saja (Palm Rejection Aktif)";
@@ -199,14 +197,6 @@
     document.documentElement.style.setProperty("--blue-500", hex);
     document.documentElement.style.setProperty("--blue-600", darken(hex, 20));
     document.getElementById("appRoot")?.classList.remove("theme-dark");
-  }
-  function getPointerPos(canvas, e) {
-    const rect = canvas.getBoundingClientRect();
-    const t = e.touches ? e.touches[0] : e;
-    return {
-      x: (t.clientX - rect.left) * (canvas.width / rect.width),
-      y: (t.clientY - rect.top) * (canvas.height / rect.height),
-    };
   }
 
   function showProgress() {
@@ -274,6 +264,15 @@
       }
     } // pointer handlers: use pointer events and pressure when available
 
+    function getPointerPos(canvas, e) {
+      const rect = canvas.getBoundingClientRect();
+      const t = e.touches ? e.touches[0] : e;
+      return {
+        x: (t.clientX - rect.left) * (canvas.width / rect.width),
+        y: (t.clientY - rect.top) * (canvas.height / rect.height),
+      };
+    }
+
     function pointerMove(e) {
       if (!drawing || panMode) return;
       e.preventDefault();
@@ -311,7 +310,14 @@
     function pointerStop(e) {
       if (!drawing) return;
       drawing = false;
+      ctx.globalCompositeOperation = "source-over";
       canvas.releasePointerCapture?.(e.pointerId);
+      if (hasDrawn) {
+        try {
+          s.dataURL = drawCanvas.toDataURL();
+        } catch (e) {}
+        updateThumbnailForIndex(pageIndex);
+      }
 
       // Hapus listener dari 'window'
       window.removeEventListener("pointermove", pointerMove);
@@ -319,13 +325,7 @@
       window.removeEventListener("pointercancel", pointerStop);
       window.removeEventListener("pointerleave", pointerStop);
 
-      ctx.globalCompositeOperation = "source-over";
-      if (hasDrawn) {
-        try {
-          s.dataURL = canvas.toDataURL();
-          // (Panggil 'updateThumbnail' Anda jika ada)
-        } catch (err) {}
-      }
+      drawCanvas.releasePointerCapture?.(e.pointerId);
     }
 
     function pointerStart(e) {
@@ -335,7 +335,11 @@
         return; // Biarkan browser scroll
       }
       // 2. Cek Palm Rejection
-      if (e.pointerType === "touch" && !allowTouchDrawing) {
+      if (
+        currentTool === "brush" && // JIKA alatnya kuas
+        e.pointerType === "touch" && // DAN inputnya sentuh
+        !allowTouchDrawing // DAN Pen Mode aktif
+      ) {
         return; // Abaikan sentuhan
       }
       // =========================================
@@ -350,11 +354,11 @@
       // Pasang listener 'move' dan 'stop' ke 'window'
       window.addEventListener("pointermove", pointerMove);
       window.addEventListener("pointerup", pointerStop);
-      try {
-        drawCanvas.setPointerCapture(e.pointerId);
-      } catch (err) {}
+      window.addEventListener("pointercancel", pointerStop);
+      window.addEventListener("pointerleave", pointerStop);
+      drawCanvas.setPointerCapture(e.pointerId);
     }
-    canvas.addEventListener("pointerdown", pointerStart);
+    canvas.addEventListener("pointerdown", pointerStart, { passive: false });
 
     canvas._doUndo = function () {
       const s = pageStates[pageIndex];
