@@ -52,7 +52,10 @@
   const quickBrushBtn = document.getElementById("quickBrush");
   const quickEraserBtn = document.getElementById("quickEraser");
 
-  const toolButtons = [quickBrushBtn, quickEraserBtn];
+  const touchToggleBtn = el("touchToggleBtn");
+  const touchToggleIcon = touchToggleBtn?.querySelector("i");
+
+  const toolButtons = [quickBrush, quickEraser, panToggleBtn];
 
   const pdfUrl = window.pdfUrl || ""; /* ========== STATE ========== */
 
@@ -69,38 +72,104 @@
   let previousScale = zoomLevels[currentZoomIndex] || 1.0;
   let panMode = false;
   let tool = "brush";
+  let currentTool = "brush";
   let color = "#000000ff";
   let size = 4;
   let isRendering = false;
   let numPages = 0; /* ========== HELPERS: THEME / PROGRESS / POPUPS ========== */
+  let allowTouchDrawing = true;
 
   let currentZoomLevel = 1.0;
   const ZOOM_STEP = 0.1;
 
   function setActiveTool(selectedTool) {
-    tool = selectedTool;
-    if (panMode) {
-      setPanMode(false); // Matikan pan mode (dan cursor grab)
+    currentTool = selectedTool;
+
+    const isPan = currentTool === "pan";
+
+    if (container) {
+      container.style.cursor = isPan ? "grab" : "default";
     }
+    let newCursor = "default"; // Panah (default)
+    if (currentTool === "brush") newCursor = "crosshair";
+    if (currentTool === "eraser") newCursor = "cell";
+
+    document.querySelectorAll(".page").forEach((page) => {
+      // 'page' (div putih) HARUS SELALU 'tembus'.
+      page.style.pointerEvents = "none";
+
+      const drawLayer = page.querySelector("canvas.draw-layer");
+      const baseLayer = page.querySelector("canvas:not(.draw-layer)");
+
+      if (isPan) {
+        // MODE PAN: Matikan KEDUA layer
+        if (drawLayer)
+          drawLayer.style.setProperty("pointer-events", "none", "important");
+        if (baseLayer)
+          baseLayer.style.setProperty("pointer-events", "none", "important");
+      } else {
+        // MODE GAMBAR:
+        if (baseLayer)
+          baseLayer.style.setProperty("pointer-events", "none", "important");
+
+        let newCursor = currentTool === "brush" ? "crosshair" : "cell";
+        if (currentTool !== "brush" && currentTool !== "eraser")
+          newCursor = "default";
+
+        if (drawLayer) {
+          // !! PAKSA drawLayer untuk 'hidup' kembali !!
+          drawLayer.style.setProperty("pointer-events", "auto", "important");
+          drawLayer.style.cursor = newCursor;
+        }
+      }
+    });
+
     toolButtons.forEach((btn) => {
-      if (btn.id.toLowerCase().includes(selectedTool)) {
+      if (btn.id.toLowerCase().includes(currentTool)) {
         btn.classList.add("active");
       } else {
         btn.classList.remove("active");
       }
     });
 
-    let newCursor = "default"; // Default-nya panah
-    // if (selectedTool === "brush") {
-    //   newCursor = "crosshair";
-    // } else if (selectedTool === "eraser") {
-    //   newCursor = "cell";
-    // }
+    if (isPan) {
+      // touchToggleBtn.style.pointerEvents = "none"; // <-- Ganti dari 'disabled'
+      // touchToggleBtn.style.opacity = "0.5";
+      touchToggleBtn.classList.remove("active");
+      touchToggleIcon.className = "fa-solid fa-hand-sparkles";
+    } else {
+      touchToggleBtn.style.pointerEvents = "auto"; // <-- Ganti dari 'disabled'
+      touchToggleBtn.style.opacity = "1";
+      touchToggleBtn.classList.toggle("active", allowTouchDrawing);
+      touchToggleIcon.className = allowTouchDrawing
+        ? "fa-solid fa-hand-point-up"
+        : "fa-solid fa-hand-point-up";
+      touchToggleBtn.title = allowTouchDrawing
+        ? "Mode Coretan Jari (Aktif)"
+        : "Mode Pen Saja (Palm Rejection Aktif)";
+    }
 
-    document.querySelectorAll(".draw-layer").forEach((c) => {
-      c.style.cursor = newCursor;
+    console.log("VEX: Alat diubah ke ->", currentTool);
+  }
+
+  function setPanMode(enabled) {
+    panMode = enabled;
+    panToggleBtn?.classList.toggle("active", panMode);
+
+    if (container) {
+      // !! PERBAIKAN KURSOR !!
+      // Container (area abu-abu) SEKARANG HANYA 'grab' atau 'default' (panah)
+      container.style.cursor = panMode ? "grab" : "default";
+      container.style.touchAction = "auto";
+    }
+
+    // atur canvas pointer events
+    document.querySelectorAll(".page canvas.draw-layer").forEach((c) => {
+      c.style.pointerEvents = panMode ? "none" : "auto";
     });
-    console.log("VEX: Alat diubah ke ->", tool);
+    document.querySelectorAll(".page canvas:not(.draw-layer)").forEach((c) => {
+      c.style.pointerEvents = enabled ? "none" : "auto";
+    });
   }
 
   function setThemeLight() {
@@ -130,6 +199,14 @@
     document.documentElement.style.setProperty("--blue-500", hex);
     document.documentElement.style.setProperty("--blue-600", darken(hex, 20));
     document.getElementById("appRoot")?.classList.remove("theme-dark");
+  }
+  function getPointerPos(canvas, e) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {
+      x: (t.clientX - rect.left) * (canvas.width / rect.width),
+      y: (t.clientY - rect.top) * (canvas.height / rect.height),
+    };
   }
 
   function showProgress() {
@@ -163,6 +240,15 @@
     zoomPercentLabel.textContent = pct + "%";
   } /* ========== DRAWING / CANVAS HELPERS ========== */
 
+  function getCanvasPos(canvas, e) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {
+      x: (t.clientX - rect.left) * (canvas.width / rect.width),
+      y: (t.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+
   function enableDrawingOnCanvas(canvas, pageIndex) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -176,21 +262,6 @@
       hasDrawn = false;
     let last = { x: 0, y: 0 };
 
-    function getCanvasPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const t = (e.touches && e.touches[0]) || e;
-
-      // posisi relatif di layar
-      const rawX = t.clientX - rect.left;
-      const rawY = t.clientY - rect.top;
-
-      // sesuaikan dengan skala dan DPI
-      const logicalX = rawX * (canvas.width / rect.width);
-      const logicalY = rawY * (canvas.height / rect.height);
-
-      return { x: logicalX, y: logicalY };
-    }
-
     function saveSnapshotToUndo() {
       const s = pageStates[pageIndex];
       try {
@@ -203,66 +274,21 @@
       }
     } // pointer handlers: use pointer events and pressure when available
 
-    canvas.addEventListener(
-      "pointerdown",
-      (e) => {
-        // when panMode is on, canvas pointer events should be disabled (handled elsewhere)
-        if (panMode) return;
-        e.preventDefault();
-        canvas.setPointerCapture?.(e.pointerId);
-        drawing = true;
-        hasDrawn = false;
-        last = getCanvasPos(e);
-        saveSnapshotToUndo();
-      },
-      { passive: false }
-    );
-
-    canvas.addEventListener(
-      "pointermove",
-      (e) => {
-        if (!drawing || panMode) return;
-        e.preventDefault();
-
-        const pos = getCanvasPos(e);
-
-        // mode gambar / hapus
-        ctx.globalCompositeOperation =
-          tool === "eraser" ? "destination-out" : "source-over";
-        ctx.strokeStyle = color;
-
-        // tekanan stylus (pressure)
-        const pressure =
-          typeof e.pressure === "number" && e.pressure > 0 ? e.pressure : 1;
-        const effectiveScale = previousScale || 1.0;
-        const lw = size * pressure * effectiveScale;
-        ctx.lineWidth = lw;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.miterLimit = 10;
-
-        // ==== smoothing antar titik (anti garis) ====
-        const smoothFactor = 0.25;
-        const dx = pos.x - last.x;
-        const dy = pos.y - last.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const steps = Math.ceil(dist / (lw * smoothFactor));
-
-        ctx.beginPath();
-        ctx.moveTo(last.x, last.y);
-        for (let i = 1; i <= steps; i++) {
-          const t = i / steps;
-          const x = last.x + dx * t;
-          const y = last.y + dy * t;
-          ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        last = pos;
-        hasDrawn = true;
-      },
-      { passive: false }
-    );
+    function pointerMove(e) {
+      if (!drawing || panMode) return;
+      e.preventDefault();
+      const pos = getPointerPos(canvas, e);
+      ctx.globalCompositeOperation =
+        tool === "eraser" ? "destination-out" : "source-over";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      last = pos;
+      hasDrawn = true;
+    }
 
     function stopDrawing(e) {
       if (!drawing) return;
@@ -282,9 +308,53 @@
       }
     }
 
-    canvas.addEventListener("pointerup", stopDrawing);
-    canvas.addEventListener("pointercancel", stopDrawing);
-    canvas.addEventListener("pointerleave", stopDrawing); // UNDO / REDO helpers attached to DOM element for convenience
+    function pointerStop(e) {
+      if (!drawing) return;
+      drawing = false;
+      canvas.releasePointerCapture?.(e.pointerId);
+
+      // Hapus listener dari 'window'
+      window.removeEventListener("pointermove", pointerMove);
+      window.removeEventListener("pointerup", pointerStop);
+      window.removeEventListener("pointercancel", pointerStop);
+      window.removeEventListener("pointerleave", pointerStop);
+
+      ctx.globalCompositeOperation = "source-over";
+      if (hasDrawn) {
+        try {
+          s.dataURL = canvas.toDataURL();
+          // (Panggil 'updateThumbnail' Anda jika ada)
+        } catch (err) {}
+      }
+    }
+
+    function pointerStart(e) {
+      // ======== GATEKEEPER (LOGIC BARU) ========
+      // 1. Cek Pan/Scroll
+      if (currentTool === "pan") {
+        return; // Biarkan browser scroll
+      }
+      // 2. Cek Palm Rejection
+      if (e.pointerType === "touch" && !allowTouchDrawing) {
+        return; // Abaikan sentuhan
+      }
+      // =========================================
+
+      e.preventDefault();
+      canvas.setPointerCapture?.(e.pointerId);
+      drawing = true;
+      hasDrawn = false;
+      last = getCanvasPos(canvas, e);
+      saveSnapshotToUndo();
+
+      // Pasang listener 'move' dan 'stop' ke 'window'
+      window.addEventListener("pointermove", pointerMove);
+      window.addEventListener("pointerup", pointerStop);
+      try {
+        drawCanvas.setPointerCapture(e.pointerId);
+      } catch (err) {}
+    }
+    canvas.addEventListener("pointerdown", pointerStart);
 
     canvas._doUndo = function () {
       const s = pageStates[pageIndex];
@@ -351,137 +421,61 @@
 
   /* ========== PAN MODE (STABIL UNTUK MOUSE, TOUCHPAD, DAN HP) ========== */
 
-  let isPanning = false;
-  let startPan = { x: 0, y: 0 };
-  let scrollStart = { x: 0, y: 0 };
-  let activeTouches = 0;
+  let isPanning = false,
+    startPan = { x: 0, y: 0 },
+    scrollStart = { x: 0, y: 0 };
 
-  function setPanMode(enabled) {
-    panMode = enabled;
-    panToggleBtn?.classList.toggle("active", panMode);
-
-    // if (container) {
-    //   container.style.cursor = panMode
-    //     ? "grab" // 1. Jika pan aktif, pakai 'grab'
-    //     : tool === "eraser"
-    //     ? "cell" // 2. Jika pan mati & alat adalah eraser, pakai 'cell'
-    //     : tool === "brush"
-    //     ? "crosshair" // 3. Jika pan mati & alat adalah brush, pakai 'crosshair'
-    //     : "default";
-    // }
-
-    if (container) {
-      // !! PERBAIKAN KURSOR !!
-      // Container (area abu-abu) SEKARANG HANYA 'grab' atau 'default' (panah)
-      container.style.cursor = panMode ? "grab" : "default";
-      container.style.touchAction = "auto";
+  container.addEventListener("mousedown", (e) => {
+    console.log(
+      "Mouse Down - currentTool:",
+      currentTool,
+      "isPan:",
+      currentTool === "pan"
+    );
+    if (currentTool !== "pan") {
+      return;
     }
+    e.preventDefault();
+    console.log("Starting Pan");
+    isPanning = true;
+    container.style.cursor = "grabbing";
+    startPan = { x: e.clientX, y: e.clientY };
+    scrollStart = { x: container.scrollLeft, y: container.scrollTop };
+  });
 
-    // atur canvas pointer events
-    document.querySelectorAll(".page canvas.draw-layer").forEach((c) => {
-      c.style.pointerEvents = panMode ? "none" : "auto";
-    });
-    document.querySelectorAll(".page canvas:not(.draw-layer)").forEach((c) => {
-      c.style.pointerEvents = enabled ? "none" : "auto";
-    });
-  }
+  container.addEventListener("mousemove", (e) => {
+    if (!isPanning) return;
+    console.log("Panning...");
+    const dx = (e.clientX - startPan.x) * 1; // ubah jadi 0.8 untuk lebih pelan
+    const dy = (e.clientY - startPan.y) * 1;
+    container.scrollLeft = scrollStart.x - dx;
+    container.scrollTop = scrollStart.y - dy;
+  });
 
-  // tombol toggle manual
-  panToggleBtn?.addEventListener("click", () => setPanMode(!panMode));
-
-  /* ====== POINTER HANDLER ====== */
-  container?.addEventListener(
-    "pointerdown",
-    (e) => {
-      if (e.pointerType === "touch") activeTouches++;
-
-      // dua jari otomatis aktifkan panMode di HP
-      if (e.pointerType === "touch" && activeTouches >= 2) {
-        setPanMode(true);
-      }
-
-      if (!panMode) return;
-      if (e.pointerType === "mouse" && e.button !== 0) return; // hanya klik kiri
-
-      e.preventDefault();
-      isPanning = true;
-      container.style.cursor = "grabbing";
-      startPan = { x: e.clientX, y: e.clientY };
-      scrollStart = { x: container.scrollLeft, y: container.scrollTop };
-      container.setPointerCapture?.(e.pointerId);
-    },
-    { passive: false }
-  );
-
-  container?.addEventListener(
-    "pointermove",
-    (e) => {
-      if (!isPanning || !panMode) return;
-      e.preventDefault();
-      const dx = e.clientX - startPan.x;
-      const dy = e.clientY - startPan.y;
-      container.scrollLeft = scrollStart.x - dx;
-      container.scrollTop = scrollStart.y - dy;
-    },
-    { passive: false }
-  );
-
-  container?.addEventListener(
-    "pointerup",
-    (e) => {
-      if (e.pointerType === "touch") {
-        activeTouches = Math.max(0, activeTouches - 1);
-      }
-
-      if (isPanning) {
-        isPanning = false;
-        container.style.cursor = panMode ? "grab" : "default";
-        try {
-          container.releasePointerCapture?.(e.pointerId);
-        } catch (_) {}
-      }
-    },
-    { passive: true }
-  );
-
-  container?.addEventListener(
-    "pointercancel",
-    (e) => {
-      if (e.pointerType === "touch") activeTouches = 0;
-      isPanning = false;
-      container.style.cursor = panMode ? "grab" : "default";
-    },
-    { passive: true }
-  );
-
-  /* ====== SCROLL WHEEL SUPPORT (MOUSE / TOUCHPAD) ====== */
-  container?.addEventListener(
-    "wheel",
-    (e) => {
-      if (!panMode) return; // hanya aktif kalau mode pan
-      e.preventDefault();
-      container.scrollTop += e.deltaY;
-      container.scrollLeft += e.deltaX;
-    },
-    { passive: false }
-  ); /* ========== BRUSH / ERASER / COLOR / SIZE ========== */
+  container.addEventListener("mouseup", () => {
+    console.log("Mouse Up");
+    if (!isPanning) return;
+    isPanning = false;
+    container.style.cursor = "grab";
+  });
+  container.addEventListener("mouseleave", () => {
+    if (!isPanning) return;
+    isPanning = false;
+    container.style.cursor = "grab";
+  });
 
   quickBrush?.addEventListener("click", () => {
     tool = "brush";
-    if (drawModeSelect) drawModeSelect.value = "brush";
+
     setActiveTool("brush");
     colorPicker.value = color;
     sizePicker.value = size;
   });
   quickEraser?.addEventListener("click", () => {
     tool = "eraser";
-    if (drawModeSelect) drawModeSelect.value = "eraser";
     setActiveTool("eraser");
   });
-  if (drawModeSelect)
-    drawModeSelect.addEventListener("change", (e) => {
-      tool = e.target.value;
-    });
+
   colorPicker?.addEventListener("change", (e) => {
     color = e.target.value;
     if (colorPicker2) colorPicker2.value = color;
@@ -511,6 +505,19 @@
     alert("✅ Semua coretan dihapus.");
   }); /* ========== ZOOM CONTROLS  ========== */
 
+  // tombol toggle manual
+  panToggleBtn?.addEventListener("click", () => {
+    setActiveTool("pan");
+  });
+
+  touchToggleBtn?.addEventListener("click", () => {
+    allowTouchDrawing = !allowTouchDrawing;
+    if (currentTool === "pan") {
+      setActiveTool("brush");
+    } else {
+      setActiveTool(currentTool);
+    }
+  });
   async function renderPageAtScale(pageIndex, scale) {
     if (!pdfDoc) return;
     const pageNum = pageIndex + 1;
@@ -897,6 +904,11 @@
     requestIdleCallback(() => generatePreviewPanel()); // apply current zoom transform
 
     isRendering = false;
+    setActiveTool("brush");
+    allowTouchDrawing = false;
+    touchToggleBtn.classList.remove("active");
+    touchToggleIcon.className = "fa-solid fa-hand-point-up";
+    touchToggleBtn.title = "Mode Pen Saja (Palm Rejection Aktif)";
     updateZoomState(DEFAULT_ZOOM_INDEX);
   } /* ========== THUMBNAIL PREVIEW GENERATOR (non-blocking) ========== */
 

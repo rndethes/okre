@@ -21,19 +21,25 @@
 <!-- ===================== BOTTOM TOOLBAR ===================== -->
 <div class="bottom-toolbar" id="bottomToolbar">
 
-  <!-- DRAW TOOL -->
-  <div class="tool-btn" id="btnDraw" title="Draw / Tools">
-    <i class="fa-solid fa-pen"></i>
+ <!-- DRAW TOOL -->
+  <div class="tool-btn" id="quickBrush" title="Brush">
+      <i class="fa-solid fa-pen-nib"></i>
+    </div>
+    <div class="tool-btn" id="touchToggleBtn" title="Mode Coretan Jari">
+      <i class="fa-solid fa-hand-point-up"></i>
+    </div>
+    <div class="tool-btn" id="panToggleBtn" title="Scroll Mode">
+      <i class="fa-solid fa-hand"></i>
+    </div>
+    <div class="tool-btn" id="quickEraser" title="Eraser">
+      <i class="fa-solid fa-eraser"></i>
+    </div>
+   <div class="tool-btn" id="btnDraw" title="Draw / Tools">
+    <i class="fa-solid fa-palette"></i>
     <div class="popup" id="popupDraw" style="display:none;">
       <div class="popup-row">
-        <button class="small-btn" id="quickBrush" title="Brush"><i class="fa-solid fa-pen-nib"></i></button>
-        <button class="small-btn" id="quickEraser" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
-        <button class="small-btn" id="panToggleBtn" title="Pan Mode"><i class="fa-solid fa-hand"></i></button>
-      </div>
-
-      <div class="popup-row">
         <label><i class="fa-solid fa-droplet"></i></label>
-        <input type="color" id="colorPicker" value="#ff0000">
+        <input type="color" id="colorPicker" value="#000000ff">
       </div>
 
       <div class="popup-row">
