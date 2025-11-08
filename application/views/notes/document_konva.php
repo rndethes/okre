@@ -6,10 +6,12 @@
 <script>
   window.baseUrl = '<?= base_url() ?>';
   window.pdfFilename = '<?= $filename ?>';
-  window.pdfUrl = window.baseUrl + 'index.php/notes/view_pdf/' + window.pdfFilename;
+  window.noteId = <?= json_encode($note_id ?? null) ?>; 
+  window.pdfUrl = window.baseUrl + 'index.php/notes/view_pdf/' + window.pdfFilename + '/<?= $this->session->userdata('workspace_sesi') ?>';
   console.log("PDF URL dari PHP:", window.pdfUrl);
-  
+  console.log("Note ID dari PHP:", window.noteId); 
 </script>
+
 
 <?php
 // Load lima bagian template editor

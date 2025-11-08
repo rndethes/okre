@@ -1,3 +1,4 @@
+<?php if (!isset($space)) $space = []; ?>
 <!-- ======================== HEADER ======================== -->
 <div class="header bg-dark-primary pb-6">
   <div class="container-fluid">
@@ -175,9 +176,13 @@
 
                   <td class="text-center">
                     <?php if(in_array($role, ['owner','editor','viewer'])): ?>
-                      <a href="<?= base_url('notes/view_pdf/'.$n['file_note']) ?>" target="_blank"
-                         class="btn btn-sm btn-info rounded-pill me-1" title="Lihat">
-                        <i class="fas fa-eye"></i>
+                      <a href="<?= base_url('notes/view_pdf/'.$n['file_note'].'/'.$this->session->userdata('workspace_sesi')) ?>" 
+                      target="_blank" 
+                      class="btn btn-sm btn-info rounded-pill me-1" 
+                      title="Lihat">
+                      <i class="fas fa-eye"></i>
+                    </a>
+
                       </a>
                     <?php endif; ?>
 
