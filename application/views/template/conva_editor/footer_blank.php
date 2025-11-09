@@ -1,4 +1,10 @@
 <!-- pdf-lib dari CDN -->
+ <script>
+  var BaseURL = '<?= base_url(); ?>';
+  window.restoredCanvasData = <?= json_encode($restored_canvas_data); ?>;
+    
+  window.currentNoteReff = <?= json_encode($reff_note); ?>;
+  </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>

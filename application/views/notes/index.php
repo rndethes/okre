@@ -121,6 +121,7 @@
                 <tr>
                   <th scope="col">Dokumen</th>
                   <th scope="col">Tanggal Dibuat</th>
+                  <th scope="col">Jenis</th>
                   <th scope="col">Dibagikan Ke</th>
                   <th scope="col" class="text-center">Aksi</th>
                 </tr>
@@ -159,6 +160,16 @@
 
                   <td><?= date('d M Y H:i', strtotime($n['created_date'])) ?></td>
 
+                  <?php 
+                    if($n['type_note'] == "document") {
+                      $showBadge = '<span class="badge badge-pill badge-warning">Document</span>';
+                    } else {
+                      $showBadge = '<span class="badge badge-pill badge-default">Blank Canvas</span>';
+                    }
+                  ?>
+
+                  <td><?= $showBadge ?></td>
+
                   <td>
                     <div class="avatar-group d-flex">
                       <?php if(!empty($shared)): ?>
@@ -187,10 +198,18 @@
                     <?php endif; ?>
 
                     <?php if(in_array($role, ['owner','editor'])): ?>
-                      <a href="<?= base_url('notes/konva/'.$n['file_note'].'/'.$this->session->userdata('workspace_sesi')) ?>"
+                      <?php if($n['type_note'] == "document") { ?>
+                        <a href="<?= base_url('notes/konva/'.$n['reff_note'].'/'.$n['file_note'].'/'.$this->session->userdata('workspace_sesi')) ?>"
                          class="btn btn-sm btn-primary rounded-pill me-1" title="Edit">
                         <i class="fas fa-pen"></i>
                       </a>
+                      <?php } else { ?>
+                         <a href="<?= base_url('notes/canvas_blank/'.$n['reff_note']) ?>"
+                          class="btn btn-sm btn-primary rounded-pill me-1" title="Edit">
+                          <i class="fas fa-pen"></i>
+                        </a>
+                      <?php } ?>
+                      
                     <?php endif; ?>
 
                     <?php if($role == 'owner'): ?>

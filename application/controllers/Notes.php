@@ -9,6 +9,7 @@ class Notes extends CI_Controller {
         $this->load->library(array('session', 'upload'));
         $this->load->database();
         $this->load->model('Space_model');
+        $this->load->model('Note_model');
     }
 
     // ==================================================
@@ -64,6 +65,9 @@ class Notes extends CI_Controller {
     $this->db->or_where("id_note IN ($subQuery)", null, false);
     $this->db->group_end();
 
+    $this->db->order_by('created_date', 'DESC');
+
+
     $notes = $this->db->get()->result_array();
 
     // ===== Tambahkan daftar user yang dibagikan =====
@@ -104,8 +108,7 @@ private function getSpaceMembers($id_space)
     // ==================================================
     // Upload PDF + Simpan DB + Buka Konva
     // ==================================================
-   public function upload_action()
-{
+   public function upload_action() {
     $id_space   = $this->session->userdata('workspace_sesi');
     $created_by = $this->session->userdata('id');
 
@@ -151,76 +154,262 @@ private function getSpaceMembers($id_space)
     ];
 
     $this->db->insert('notes', $insertData);
-    redirect('notes/konva/' . $dataUpload['file_name'] . "/" . $id_space);
+
+    // 2. BARU AMBIL ID-NYA
+    $idnotes = $this->db->insert_id();
+
+    $insertShareData = [
+        'id_users'          => $created_by,
+        'id_notes'          => $idnotes,
+        'role'              => 'owner',
+        'state_note_share'  => "",
+        'created_by'        => $created_by,
+        'created_date'      => $created_date
+    ];
+
+    
+    $this->db->insert('notes_share', $insertShareData);
+
+    $notedata = $this->db->get_where('notes', ['id_note' => $idnotes])->row_array();
+
+    $reff = $notedata['reff_note'];
+
+    redirect('notes/konva/' . $reff . '/' .$dataUpload['file_name'] . "/" . $id_space);
 }
 
     // ==================================================
     // Editor Konva (PDF + Coretan)
     // ==================================================
-    public function konva($filename = null)
-{
-    if (!$filename) redirect('notes/index/' . $this->session->userdata('workspace_sesi'));
+    public function konva($reff = null,$filename = null) {
+        $id_space   = $this->session->userdata('workspace_sesi');
+        if (!$filename) redirect('notes/index/' . $id_space);
 
-    $note = $this->db->get_where('notes', ['file_note' => $filename])->row_array();
-    if (!$note) show_error('Data note tidak ditemukan.');
+        $note = $this->db->get_where('notes', ['reff_note' => $reff])->row_array();
+        if (!$note) show_error('Data note tidak ditemukan.');
 
-    $id_user = $this->session->userdata('id');
-    $access = $this->getUserAccess($note['id_note'], $id_user);
+        $id_user = $this->session->userdata('id');
+        $access = $this->getUserAccess($note['id_note'], $id_user);
 
-    if (!$access['has_access']) {
-        show_error('Anda tidak memiliki akses ke dokumen ini.', 403, 'Akses Ditolak');
+        if (!$access['has_access']) {
+            show_error('Anda tidak memiliki akses ke dokumen ini.', 403, 'Akses Ditolak');
+        }
+
+        if ($id_space === null) {
+            $id_space = $this->session->userdata('workspace_sesi');
+        }
+
+        $namafolder = checkSpaceById($id_space);
+
+        $path = base_url() . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $filename;
+
+        $data['readonly'] = ($access['role'] === 'viewer');
+        $data['role']   = $access['role'];
+        $data['filename'] = $filename;
+        $data['note_id']  = $note['id_note'];
+        $data['pdf_url'] = $path;
+
+        $this->load->view('notes/document_konva', $data);
     }
 
-    $data['readonly'] = ($access['role'] === 'viewer');
-    $data['role'] = $access['role'];
-    $data['filename'] = $filename;
-    $data['note_id']  = $note['id_note'];
+    public function replace_pdf() {
 
-    $this->load->view('notes/document_konva', $data);
-}
+        $id_space   = $this->session->userdata('workspace_sesi');
+        $old_filename = $this->input->post('old_pdf_name');
 
-    // ==================================================
-    // Canvas kosong
-    // ==================================================
-    public function canvas_blank()
-    {   
-        $this->load->view('template/conva_editor/header_blank');
-        $this->load->view('notes/canvas_blank');
-        $this->load->view('template/conva_editor/footer_blank');
+         $namafolder = checkSpaceById($id_space);
+        
+        if (empty($old_filename)) {
+            $this->output->set_status_header(400);
+            echo json_encode(['status' => 'error', 'message' => 'Nama file lama tidak ada.']);
+            return;
+        }
+
+        $upload_path = './assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/'; 
+
+        $config['upload_path']          = $upload_path;
+        $config['allowed_types']        = 'pdf';
+        $config['file_name']            = $old_filename; // Nama file baru SAMA DENGAN nama file lama
+        $config['overwrite']            = TRUE;         // PENTING: Izinkan menimpa file
+        $config['max_size']             = 50000;        // (Opsional) 20MB
+
+        $this->load->library('upload', $config);
+        $this->upload->initialize($config);
+
+        if ( ! $this->upload->do_upload('pdf_file')) {
+            // Jika upload gagal
+            $this->output->set_status_header(500);
+            echo json_encode([
+                'status' => 'error', 
+                'message' => $this->upload->display_errors('', '')
+            ]);
+        } else {
+            // Jika upload sukses, file lama sudah otomatis tertimpa
+            $upload_data = $this->upload->data();
+            echo json_encode([
+                'status' => 'success', 
+                'message' => 'Dokumen berhasil diperbarui.',
+                'new_path' => $upload_path . $upload_data['file_name']
+            ]);
+        }
     }
 
-    // ==================================================
-    // PDF Viewer Proxy (PDF.js Support)
-    // ==================================================
+    // public function canvas_blank() {   
+    //     $this->load->view('template/conva_editor/header_blank');
+    //     $this->load->view('notes/canvas_blank');
+    //     $this->load->view('template/conva_editor/footer_blank');
+    // }
 
-    public function view_pdf($filename, $id_space = null)
-{
-    if ($id_space === null) {
+    public function canvas_blank($reff_note = NULL) {
+        
+        // 1. Siapkan data default untuk view
+        $data = [
+            'reff_note' => $reff_note,
+            'restored_canvas_data' => NULL // Default (untuk mode 'Baru')
+        ];
+
+        if ($reff_note) {
+        
+            $note = $this->Note_model->get_note_by_reff($reff_note); 
+
+            if ($note && !empty($note->canvas_data_path)) {
+                
+                $absolute_path = FCPATH . $note->canvas_data_path;
+
+                if (file_exists($absolute_path)) {
+
+                    $json_string = file_get_contents($absolute_path);
+                    
+                    $data['restored_canvas_data'] = $json_string;
+                }
+            }
+        }
+
+        $this->load->view('template/conva_editor/header_blank', $data);
+        $this->load->view('notes/canvas_blank', $data);
+        $this->load->view('template/conva_editor/footer_blank', $data);
+    }
+
+    public function save_blank_canvas() {
+        
+        // 1. Ambil JSON data mentah (bukan $_POST)
+        $json_data_string = $this->input->raw_input_stream;
+
         $id_space = $this->session->userdata('workspace_sesi');
+
+
+        $namafolder = checkSpaceById($id_space);
+
+        $data = json_decode($json_data_string);
+
+        // 2. Validasi input
+        if (empty($data->note_name) || empty($data->canvas_data)) {
+            $this->output->set_status_header(400); // Bad Request
+            echo json_encode(['status' => 'error', 'message' => 'Nama catatan atau data canvas kosong.']);
+            return;
+        }
+        
+
+        // 3. Buat nama file unik untuk data JSON
+        $file_name = 'note-' . uniqid() . '-' . time() . '.json';
+
+         // Folder penyimpanan hasil coretan
+        $folder = FCPATH . "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_blank/";
+        if (!file_exists($folder)) mkdir($folder, 0777, true);
+    
+     
+        $relative_path = "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_blank/" . $file_name;
+
+        // 2. TENTUKAN JALUR ABSOLUT (Untuk dipakai PHP)
+        $absolute_path = FCPATH . $relative_path;
+
+        // 4. Tulis data JSON mentah ke file di server
+        if (file_put_contents($absolute_path, $json_data_string) === FALSE) {
+            $this->output->set_status_header(500);
+            echo json_encode(['status' => 'error', 'message' => 'Gagal menulis file JSON ke server.']);
+            return;
+        }
+
+        // 5. Simpan ke Database (Gunakan Transaksi)
+        // (Asumsikan Anda sudah load model dan session)
+        $this->load->model('note_model'); // Ganti dengan nama model Anda
+        $id_user = $this->session->userdata('id');
+        $id_space = $this->session->userdata('workspace_sesi'); // (Contoh)
+
+        $this->db->trans_start();
+
+        // Insert ke tabel 'notes'
+        $note_data = [
+            'reff_note'         => uniqid('NOTE_'),
+            'name_notes'        => $data->note_name,
+            'type_note'        => "blank", // Ini BUKAN PDF, jadi null
+            'file_note'         => null, // Ini BUKAN PDF, jadi null
+            'id_space_note'     => $id_space,
+            'state'             => 'active',
+            'created_by'        => $id_user,
+            'canvas_data_path'  => $relative_path, // Ini path JSON kita
+            'created_date'      => date('Y-m-d H:i:s'),
+            'updated_date'      => date('Y-m-d H:i:s')
+        ];
+        $this->db->insert('notes', $note_data);
+        $note_id = $this->db->insert_id(); // Ambil ID yang baru
+
+        // Insert ke tabel 'notes_share' (untuk kepemilikan)
+        $share_data = [
+            'id_users'          => $id_user,
+            'id_notes'          => $note_id,
+            'role'              => 'owner',
+            'created_by'        => $id_user,
+            'created_date'      => date('Y-m-d H:i:s')
+        ];
+        $this->db->insert('notes_share', $share_data);
+
+        $this->db->trans_complete();
+
+        // 6. Periksa hasil transaksi
+        if ($this->db->trans_status() === FALSE) {
+            // Gagal! Hapus file JSON yang "yatim"
+            unlink($absolute_path);
+            $this->output->set_status_header(500);
+            echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan ke database.']);
+        } else {
+            // 7. Sukses
+            echo json_encode([
+                'status' => 'success', 
+                'message' => 'Canvas berhasil disimpan!',
+                'new_note_id' => $note_id
+            ]);
+        }
     }
 
-    $namafolder = checkSpaceById($id_space);
 
-    if (!str_ends_with(strtolower($filename), '.pdf')) {
-        $filename .= '.pdf';
+    public function view_pdf($filename, $id_space = null) {
+
+        if ($id_space === null) {
+            $id_space = $this->session->userdata('workspace_sesi');
+        }
+
+        $namafolder = checkSpaceById($id_space);
+
+        if (!str_ends_with(strtolower($filename), '.pdf')) {
+            $filename .= '.pdf';
+        }
+
+        $path = FCPATH . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $filename;
+
+        if (!file_exists($path)) {
+            show_error("Gagal memuat PDF. File tidak ditemukan di: " . $path, 404, 'File Tidak Ditemukan');
+            return;
+        }
+
+        while (ob_get_level()) ob_end_clean();
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($filename) . '"');
+        header('Content-Length: ' . filesize($path));
+
+        readfile($path);
+        exit;
     }
-
-    $path = FCPATH . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $filename;
-
-    if (!file_exists($path)) {
-        show_error("Gagal memuat PDF. File tidak ditemukan di: " . $path, 404, 'File Tidak Ditemukan');
-        return;
-    }
-
-    while (ob_get_level()) ob_end_clean();
-
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="' . basename($filename) . '"');
-    header('Content-Length: ' . filesize($path));
-
-    readfile($path);
-    exit;
-}
 
 
     // ==================================================
@@ -271,6 +460,7 @@ public function save_pdf_server()
     // Dapatkan nama dokumen dari input (pastikan dikirim di form)
     $name_doc_input = $this->input->post('document_name', TRUE);
     $safe_doc_name = preg_replace('/[^A-Za-z0-9_\-]/', '_', $name_doc_input);
+    
 
     // Folder penyimpanan hasil coretan
     $folder = FCPATH . "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_pdf/";
@@ -378,9 +568,10 @@ public function load_canvas_json($id_note)
 public function get_note_owner($id_note)
 {
     $note = $this->db->select('users.id, users.nama')
-        ->from('notes')
-        ->join('users', 'users.id = notes.created_by')
-        ->where('notes.id_note', $id_note)
+        ->from('notes_share')
+        ->join('users', 'users.id = notes_share.id_users')
+        ->where('notes_share.id_notes', $id_note)
+        ->where('notes_share.role', 'owner')
         ->get()
         ->row_array();
 
@@ -511,4 +702,59 @@ private function getUserAccess($id_note, $id_user)
 
     return ['has_access' => false, 'role' => null];
 }
+
+    public function save_canvas_data() {
+        $json_data = $this->input->raw_input_stream;
+        $data = json_decode($json_data);
+        $note_id = $data->note_id; // Pastikan Anda mengirim ini dari JS!
+
+        $id_space   = $this->session->userdata('workspace_sesi');
+        $created_by = $this->session->userdata('id');
+
+        // Ambil nama folder space
+        $namafolder = checkSpaceById($id_space);
+        $created_date = getCurrentDate();
+
+        $name_doc_input = "blank_canvas";
+        $safe_doc_name = preg_replace('/[^A-Za-z0-9_\-]/', '_', $name_doc_input);
+
+        $insertData = [
+            'reff_note'     => uniqid('NOTE_'),
+            'name_notes'    => $name_doc_input . "_" . $created_date,
+            'file_note'     => "blank_canvas",
+            'id_space_note' => $id_space,
+            'state'         => 'active',
+            'created_by'    => $created_by,
+            'created_date'  => $created_date,
+            'updated_date'  => $created_date
+        ];
+
+        $this->db->insert_id('notes', $insertData);
+
+        // Buat folder lengkap
+        $basePath = FCPATH . "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_pdf/";
+        if (!is_dir($basePath)) mkdir($basePath, 0777, true);
+
+        if (empty($note_id)) {
+            // Kirim balik error
+            $this->output
+                 ->set_content_type('application/json')
+                 ->set_output(json_encode(['status' => 'error', 'message' => 'Note ID tidak ada']));
+            return;
+        }
+        $file_name = 'note-' . $note_id . '-data.json';
+        $file_path_on_server = './uploads/canvas_data/' . $file_name;
+
+        
+        file_put_contents($file_path_on_server, $json_data);
+        
+        $this->load->model('note_model');
+        $relative_path = 'uploads/canvas_data/' . $file_name;
+        $this->note_model->update_canvas_path($note_id, $relative_path);
+
+        // 6. Kirim balik sukses
+        $this->output
+             ->set_content_type('application/json')
+             ->set_output(json_encode(['status' => 'success', 'message' => 'Canvas tersimpan!']));
+    }
 }

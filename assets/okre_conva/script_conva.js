@@ -55,6 +55,8 @@
   const touchToggleBtn = el("touchToggleBtn");
   const touchToggleIcon = touchToggleBtn?.querySelector("i");
 
+  const btnSimpan = document.getElementById("btnSimpanPerubahan");
+
   const toolButtons = [quickBrush, quickEraser, panToggleBtn];
 
   const pdfUrl = window.pdfUrl || ""; /* ========== STATE ========== */
@@ -916,6 +918,52 @@
     updateZoomState(DEFAULT_ZOOM_INDEX);
   } /* ========== THUMBNAIL PREVIEW GENERATOR (non-blocking) ========== */
 
+  /* [GANTI FUNGSI 'generateAnnotatedPdfBlob' LAMA ANDA DENGAN INI] */
+
+  async function generateAnnotatedPdfBlob() {
+    const { PDFDocument } = PDFLib;
+    var urlPDFString = document.getElementById("pdf_url").value;
+
+    // Encode karakter '&' yang 'disallowed'
+    var cleanURL = urlPDFString.replace(/&/g, "%26");
+
+    console.log("VEX: URL Asli:", urlPDFString);
+    console.log("VEX: URL Diperbaiki:", cleanURL);
+
+    // Fetch menggunakan URL yang sudah bersih
+    const existingPdfBytes = await fetch(cleanURL).then((res) => {
+      if (!res.ok) {
+        throw new Error(`Gagal mengambil PDF: ${res.status} ${res.statusText}`);
+      }
+      return res.arrayBuffer();
+    });
+
+    // Muat byte ke 'pdf-lib'
+    const pdfDocToModify = await PDFDocument.load(existingPdfBytes);
+
+    const pages = pdfDocToModify.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+
+      // Ambil data coretan (dataURL) dari state kita
+      const dataURL = pageStates[i]?.dataURL;
+
+      if (dataURL) {
+        const pngImage = await pdfDocToModify.embedPng(dataURL);
+
+        const { width, height } = page.getSize();
+        page.drawImage(pngImage, {
+          x: 0,
+          y: 0,
+          width: width,
+          height: height,
+        });
+      }
+    } // Akhir loop
+    const pdfBytes = await pdfDocToModify.save();
+    return new Blob([pdfBytes], { type: "application/pdf" });
+  }
+
   async function generatePreviewPanel() {
     if (!previewPanel || !pdfDoc) return;
     previewPanel.innerHTML = "";
@@ -1022,6 +1070,50 @@
     return await doc.save();
   } /* ========== SAVE / DOWNLOAD HANDLERS ========== */
 
+  async function saveCanvasToServer() {
+    try {
+      // 1. Tangkap snapshot canvas
+      console.log("VEX: Menangkap snapshot canvas terakhir...");
+      captureAllDrawsToStates();
+
+      // 2. Dapatkan data
+      const oldPdfName = document.getElementById("pdf_name").value;
+      if (!oldPdfName) {
+        throw new Error("Nama PDF asli tidak ditemukan.");
+      }
+
+      console.log("VEX: Memulai 'generateAnnotatedPdfBlob'...");
+      const newPdfBlob = await generateAnnotatedPdfBlob();
+      console.log("VEX: Blob PDF baru berhasil dibuat.");
+
+      // 4. Siapkan FormData
+      const formData = new FormData();
+      formData.append("old_pdf_name", oldPdfName);
+      formData.append("pdf_file", newPdfBlob, oldPdfName);
+
+      console.log("VEX: Mengirim FormData ke server...");
+      const response = await fetch(BaseURL + "notes/replace_pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      // 6. Periksa hasil
+      if (!response.ok || result.status !== "success") {
+        throw new Error(result.message || "Gagal merespons server");
+      }
+
+      // 7. Kembalikan 'true' jika sukses
+      console.log("VEX: Simpan sukses.");
+      return true;
+    } catch (err) {
+      // 8. Jika gagal di langkah mana pun, lempar error
+      console.error("VEX: Gagal menyimpan PDF:", err);
+      throw err; // Lempar error agar 'await' bisa menangkapnya
+    }
+  }
+
   savePdfBtn?.addEventListener("click", async () => {
     try {
       showProgress();
@@ -1040,34 +1132,6 @@
       console.error(err);
       hideProgress();
       alert("Gagal membangun PDF.");
-    }
-  });
-
-  saveServerBtn?.addEventListener("click", async () => {
-    try {
-      showProgress();
-      setProgress(5);
-      const bytes = await generateAnnotatedPdfBytes((p) =>
-        setProgress(5 + Math.round(p * 0.8))
-      );
-      setProgress(70);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const form = new FormData();
-      form.append("pdf_file", blob, "annotated_" + Date.now() + ".pdf");
-      const res = await fetch(
-        window.baseUrl + "index.php/notes/save_pdf_server",
-        { method: "POST", body: form }
-      );
-      const json = await res.json();
-      setProgress(100);
-      hideProgress();
-      if (json.status === "success")
-        alert("✅ PDF berhasil disimpan:\n" + json.file);
-      else alert("❌ Gagal simpan: " + (json.message || "unknown"));
-    } catch (err) {
-      console.error(err);
-      hideProgress();
-      alert("⚠️ Error simpan ke server");
     }
   });
 
@@ -1140,31 +1204,61 @@
     }
   });
 
-  saveServerTopBtn?.addEventListener("click", async () => {
+  btnSimpan?.addEventListener("click", async function () {
     try {
-      showProgress();
-      setProgress(5);
-      const bytes = await generateAnnotatedPdfBytes((p) =>
-        setProgress(5 + Math.round(p * 0.8))
-      );
-      setProgress(70);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const form = new FormData();
-      form.append("pdf_file", blob, "annotated_" + Date.now() + ".pdf");
-      const res = await fetch(
-        window.baseUrl + "index.php/notes/save_pdf_server",
-        { method: "POST", body: form }
-      );
-      const json = await res.json();
-      setProgress(100);
-      hideProgress();
-      if (json.status === "success")
-        alert("✅ PDF berhasil disimpan di server:\n" + json.file);
-      else alert("❌ Gagal simpan: " + (json.message || "unknown"));
+      await saveCanvasToServer();
     } catch (err) {
-      console.error(err);
-      hideProgress();
-      alert("⚠️ Terjadi kesalahan saat menyimpan ke server.");
+      console.error(
+        "VEX: Gagal menyimpan saat Batal, tapi tetap melanjutkan:",
+        err
+      );
+    }
+    const backUrlInput = document.getElementById("back_url");
+    const href = backUrlInput ? backUrlInput.value : null;
+
+    if (href) {
+      window.location.href = href;
+    } else {
+      console.error("VEX: Tidak menemukan #back_url untuk redirect.");
+    }
+    modalInstance?.hide();
+  });
+
+  saveServerTopBtn?.addEventListener("click", async () => {
+    Swal.fire({
+      title: "Menyimpan...",
+      text: "Sedang menggabungkan PDF dan coretan. Mohon tunggu.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+    try {
+      await saveCanvasToServer();
+
+      // 3. Tampilkan SweetAlert "Sukses" (Dialog Pilihan)
+      Swal.fire({
+        title: "Tersimpan!",
+        text: "Dokumen Anda telah diperbarui di server. Apa selanjutnya?",
+        icon: "success",
+        showCancelButton: true,
+        confirmButtonText: "Kembali ke Catatan",
+        cancelButtonText: "Tetap di Sini",
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#6c757d",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const cancelBtn = document.getElementById("back_url");
+          window.location.href = cancelBtn.value;
+        }
+      });
+    } catch (err) {
+      console.error("VEX: Gagal menyimpan PDF:", err);
+      Swal.fire(
+        "Error",
+        "Terjadi kesalahan saat menyimpan: " + err.message,
+        "error"
+      );
     }
   });
 

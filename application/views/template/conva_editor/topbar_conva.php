@@ -2,6 +2,7 @@
 // ===================== TOPBAR_CONVA (UPGRADED) =====================
 ?>
 <div id="main-area">
+
   <div id="topbar">
     <div class="left">
       <h2>OKRE Sketch</h2>
@@ -10,8 +11,12 @@
       </button>
       <div style="color:var(--muted);font-size:13px;">Editor PDF</div>
     </div>
+      <input type="hidden" id="pdf_url" value="<?= $pdf_url ?>">
+      <input type="hidden" id="pdf_name" value="<?= $filename ?>">
+      <input type="hidden" id="back_url" value="<?= base_url() . "notes/index/" . $this->session->userdata('workspace_sesi') . "/space"  ?>">
+
     <div class="actions">
-      <a href="<?= base_url() ?>notes/index/<?= $this->uri->segment(4) ?>/space" id="cancelBtn" class="top-btn">
+      <a href="<?= base_url() ?>notes/index/<?= $this->uri->segment(5) ?>/space" id="cancelBtn" class="top-btn">
         <i class="fa-solid fa-arrow-left"></i>
         <span class="btn-text">&nbsp;Batalkan</span>
       </a>
@@ -21,7 +26,7 @@
       </button>
       <button id="saveServerTopBtn" class="top-btn">
         <i class="fa-solid fa-cloud-arrow-up"></i>
-        <span class="btn-text">&nbsp;Server</span>
+        <span class="btn-text">&nbsp;Simpan</span>
       </button>
       <div class="dropdown">
         <button id="downloadTopBtn" class="top-btn">
@@ -131,7 +136,7 @@
     
     // ========== KONFIRMASI SIMPAN ==========
     const cancelBtn = document.getElementById('cancelBtn');
-    const btnSimpan = document.getElementById('btnSimpanPerubahan');
+  
     const btnTutup = document.getElementById('btnTutupHalaman');
     const confirmModal = document.getElementById('confirmModal');
     let modalInstance = null;
@@ -145,12 +150,8 @@
       });
     }
 
-    btnSimpan?.addEventListener('click', async function() {
-      await saveCanvasToServer();
-      const href = cancelBtn?.dataset.href;
-      if (href) window.location.href = href;
-      modalInstance?.hide();
-    });
+
+
 
     btnTutup?.addEventListener('click', function() {
       const href = cancelBtn?.dataset.href;
@@ -158,22 +159,7 @@
       modalInstance?.hide();
     });
 
-    async function saveCanvasToServer() {
-      if (isReadonly) return showToast('Mode baca, tidak bisa menyimpan.', false);
-      if (typeof stage === 'undefined') return showToast('Canvas belum siap!', false);
-
-      const jsonData = stage.toJSON();
-      const res = await fetch(`${baseUrl}index.php/notes/save_canvas_json/${idNote}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ json: jsonData })
-      });
-      const result = await res.json();
-      if (result.status === 'success') showToast('✅ Coretan berhasil disimpan.');
-      else showToast('❌ Gagal menyimpan coretan.', false);
-    }
-
-    document.getElementById('saveServerTopBtn')?.addEventListener('click', saveCanvasToServer);
+ 
 
     // ========== MODE READONLY ==========
     if (isReadonly) {
@@ -196,7 +182,7 @@
     });
 
     async function loadOwner() {
-      const res = await fetch(`${baseUrl}index.php/notes/get_note_owner/${idNote}`);
+      const res = await fetch(`${baseUrl}/notes/get_note_owner/${idNote}`);
       const data = await res.json();
       ownerText.textContent = data.success ? data.owner.nama : 'Tidak diketahui';
     }

@@ -84,7 +84,9 @@
 </div>
 
 
-
+<script>
+  var BaseURL = '<?= base_url(); ?>' 
+</script>
 
 
 <!-- ===================== LIBRARIES ===================== -->
@@ -95,6 +97,7 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script defer src="<?= base_url('assets/okre_conva/script_conva.js') ?>"></script>
 
 
@@ -103,6 +106,7 @@
 
 <!-- ===================== SCRIPT UTAMA ===================== -->
 <script>
+
 document.addEventListener("DOMContentLoaded", () => {
   const btnDraw = document.getElementById('btnDraw');
   const popupDraw = document.getElementById('popupDraw');

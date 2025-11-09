@@ -37,6 +37,7 @@ const touchToggleBtn = document.getElementById("touchToggleBtn");
 const touchToggleIcon = touchToggleBtn?.querySelector("i");
 
 const toolButtons = [quickBrush, quickEraser, panToggleBtn];
+const saveTopBtn = document.getElementById("saveTopBtn");
 
 // function setActiveTool(selectedTool) {
 //   tool = selectedTool;
@@ -825,11 +826,37 @@ themeLightBtn?.addEventListener("click", setThemeLight);
 themeDarkBtn?.addEventListener("click", setThemeDark);
 
 /* init: create two pages */
-(function init() {
-  createPage(0);
-  updateZoomLabel();
+// (function init() {
+//   createPage(0);
+//   updateZoomLabel();
 
-  setActiveTool("brush");
+//   setActiveTool("brush");
+// })();
+
+(function init() {
+  if (window.restoredCanvasData) {
+    console.log("VEX: Data coretan ditemukan, memuat...");
+    try {
+      const data = JSON.parse(window.restoredCanvasData);
+
+      if (data.canvas_data && data.canvas_data.length > 0) {
+        data.canvas_data.forEach((pageData, index) => {
+          createPage(index, pageData.dataURL);
+        });
+      } else {
+        createPage(0);
+      }
+    } catch (e) {
+      console.error("VEX: Gagal parse data JSON, membuat canvas kosong.", e);
+      createPage(0); // Gagal parse, buat 1 halaman
+    }
+  } else {
+    // 5. Tidak ada data (Mode "Baru")
+    console.log("VEX: Mode 'Baru'. Membuat 1 halaman kosong.");
+    createPage(0); // Buat 1 halaman kosong
+  }
+  updateZoomLabel();
+  setActiveTool("brush"); // Set default tool
   allowTouchDrawing = false;
   touchToggleBtn.classList.remove("active");
   touchToggleIcon.className = "fa-solid fa-hand-point-up";
@@ -859,3 +886,187 @@ function autoZoomToFit() {
     });
   }
 }
+
+async function saveBlankCanvasToServer(noteName) {
+  try {
+    saveAllDrawStates(); // (Fungsi ini dari file 500 baris Anda)
+    const dataToSave = pages.map((p) => {
+      return {
+        dataURL: p.state.dataURL,
+      };
+    });
+
+    // 3. Siapkan paket data (payload)
+    const payload = {
+      note_name: noteName,
+      canvas_data: dataToSave,
+    };
+
+    // 4. Kirim ke Controller CI3
+    const response = await fetch(BaseURL + "notes/save_blank_canvas", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.status !== "success") {
+      throw new Error(result.message || "Gagal merespons server");
+    }
+
+    // 5. Sukses, kembalikan hasilnya
+    return result;
+  } catch (err) {
+    // 6. Gagal, lempar error agar bisa ditangkap SweetAlert
+    console.error("VEX: Gagal menyimpan canvas:", err);
+    throw err;
+  }
+}
+
+saveTopBtn?.addEventListener("click", () => {
+  Swal.fire({
+    title: "Simpan Coretan",
+    text: "Masukkan nama untuk file coretan Anda:",
+    input: "text",
+    inputPlaceholder: "Coretan Rapat Mingguan...",
+    showCancelButton: true,
+    confirmButtonText: "Simpan",
+    cancelButtonText: "Batal",
+
+    // Validasi input (tidak boleh kosong)
+    inputValidator: (value) => {
+      if (!value) {
+        return "Nama file tidak boleh kosong!";
+      }
+    },
+  }).then(async (result) => {
+    // 2. Jika pengguna mengklik "Simpan" (dan valid)
+    if (result.isConfirmed && result.value) {
+      const noteName = result.value;
+      Swal.fire({
+        title: "Menyimpan...",
+        text: "Mengirim data ke server. Mohon tunggu.",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      try {
+        // 4. Panggil "Mesin"
+        const saveResult = await saveBlankCanvasToServer(noteName);
+
+        Swal.fire({
+          title: "Tersimpan!",
+          text:
+            "Coretan Anda telah disimpan (ID: " +
+            saveResult.new_note_id +
+            "). Apa selanjutnya?",
+          icon: "success",
+          showCancelButton: true,
+          confirmButtonText: "Kembali",
+          cancelButtonText: "Tetap di Sini",
+          confirmButtonColor: "#3085d6",
+          cancelButtonColor: "#6c757d",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Pengguna memilih "Kembali"
+            const backUrlInput = document.getElementById("back_url");
+
+            if (backUrlInput && backUrlInput.value) {
+              window.location.href = backUrlInput.value;
+            } else {
+              console.error(
+                "VEX: Input #back_url tidak ditemukan atau kosong."
+              );
+            }
+          }
+          // Jika 'isDismissed' (klik "Tetap di Sini"), alert tertutup.
+        });
+      } catch (err) {
+        // 6. Tampilkan notifikasi Gagal
+        Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
+      }
+    }
+  }); // Akhir .then()
+});
+
+/* [TAMBAHKAN INI DI FILE JS "BLANK CANVAS" ANDA] */
+
+// Pastikan ini berjalan setelah DOM siap
+document.addEventListener("DOMContentLoaded", () => {
+  const cancelBtn = document.getElementById("cancelBtn");
+  const confirmModalEl = document.getElementById("confirmModal");
+
+  if (typeof bootstrap === "undefined") {
+    console.error(
+      "VEX: Bootstrap JS tidak dimuat. Modal tidak akan berfungsi."
+    );
+    return;
+  }
+
+  const modalInstance = new bootstrap.Modal(confirmModalEl);
+  const btnTutupHalaman = document.getElementById("btnTutupHalaman");
+  const btnSimpanPerubahan = document.getElementById("btnSimpanPerubahan");
+
+  const backUrl = cancelBtn.href;
+
+  cancelBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    modalInstance.show();
+  });
+
+  btnTutupHalaman.addEventListener("click", () => {
+    window.location.href = backUrl;
+  });
+
+  btnSimpanPerubahan.addEventListener("click", () => {
+    modalInstance.hide();
+
+    Swal.fire({
+      title: "Simpan Coretan",
+      text: "Masukkan nama untuk file coretan Anda:",
+      input: "text",
+      inputPlaceholder: "Coretan Rapat Mingguan...",
+      showCancelButton: true,
+      confirmButtonText: "Simpan & Tutup",
+      cancelButtonText: "Batal",
+      inputValidator: (value) => {
+        if (!value) {
+          return "Nama file tidak boleh kosong!";
+        }
+      },
+    }).then(async (result) => {
+      // 4c. Jika pengguna memasukkan nama dan mengklik "Simpan & Tutup"
+      if (result.isConfirmed && result.value) {
+        const noteName = result.value;
+
+        // Tampilkan "Loading"
+        Swal.fire({
+          title: "Menyimpan...",
+          text: "Mengirim data ke server. Mohon tunggu.",
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
+        });
+
+        try {
+          // 4d. Panggil "Mesin" Penyimpanan
+          await saveBlankCanvasToServer(noteName);
+
+          // 4e. SUKSES: Tutup SweetAlert 'loading' dan REDIRECT
+          Swal.close();
+          window.location.href = backUrl; // Navigasi ke halaman 'notes'
+        } catch (err) {
+          // 4f. GAGAL: Tampilkan error
+          Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
+        }
+      }
+      // Jika pengguna 'Batal' dari SweetAlert, tidak terjadi apa-apa.
+    });
+  }); // Akhir listener 'btnSimpanPerubahan'
+}); // Akhir DOMContentLoaded

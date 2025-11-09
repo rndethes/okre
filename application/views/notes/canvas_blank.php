@@ -24,10 +24,11 @@
   <img src="http://localhost/projectint/okre/assets/img/logo.png" alt="OKRE Logo" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;">
   OKRE Sketch
 </h2><div style="color:var(--muted);font-size:13px;margin-left:12px">Canvas Blank</div></div>
+      <input type="hidden" id="back_url" value="<?= base_url() ?>notes/index/<?= $this->session->userdata('workspace_sesi') ?>/space">
       <div class="actions" style="display:flex;gap:10px;align-items:center">
-        <a href="<?= base_url() ?>notes/index/<?= $this->uri->segment(4) ?>/space" id="cancelBtn" class="top-btn">
-        <i class="fa-solid fa-arrow-left"></i> <span class="btn-text">&nbsp;Batalkan</span>
-      </a>
+        <a href="<?= base_url() ?>notes/index/<?= $this->session->userdata('workspace_sesi') ?>/space" id="cancelBtn" class="top-btn">
+          <i class="fa-solid fa-arrow-left"></i> <span class="btn-text">&nbsp;Batalkan</span>
+        </a>
         <button id="downloadTopBtn" class="top-btn"><i class="fa-solid fa-download"></i><span class="btn-text">&nbsp;Download</span></button>
         <button id="saveTopBtn" class="top-btn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="btn-text">&nbsp;Simpan</span></button>
       </div>
@@ -36,6 +37,24 @@
     <div id="container" class="container"></div>
   </div>
 </div>
+
+  <div class="modal fade" id="confirmModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered custom-modal-top">
+      <div class="modal-content custom-modal">
+        <div class="modal-header">
+          <h5 class="modal-title">Konfirmasi</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+        </div>
+        <div class="modal-body text-center">
+          Apakah kamu ingin menutup halaman dan menyimpan perubahan?
+        </div>
+        <div class="modal-footer justify-content-center">
+          <button type="button" class="btn btn-secondary" id="btnTutupHalaman">Tutup Tanpa Menyimpan</button>
+          <button type="button" class="btn btn-primary" id="btnSimpanPerubahan">Simpan Perubahan</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <!-- SETTINGS POPUP -->
 <div class="popup-sidebar" id="settingsPopup" style="position:fixed; left:96px; bottom:84px; display:none; z-index:1200;">
