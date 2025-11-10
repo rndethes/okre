@@ -18,12 +18,15 @@
   </div>
 </div>
 
+
+
   <div id="main-area">
     <div id="topbar">
       <div class="left"><h2>
   <img src="http://localhost/projectint/okre/assets/img/logo.png" alt="OKRE Logo" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;">
   OKRE Sketch
 </h2><div style="color:var(--muted);font-size:13px;margin-left:12px">Canvas Blank</div></div>
+      <input type="hidden" id="editable" value="<?= $editable ?>">
       <input type="hidden" id="back_url" value="<?= base_url() ?>notes/index/<?= $this->session->userdata('workspace_sesi') ?>/space">
       <div class="actions" style="display:flex;gap:10px;align-items:center">
         <a href="<?= base_url() ?>notes/index/<?= $this->session->userdata('workspace_sesi') ?>/space" id="cancelBtn" class="top-btn">
@@ -127,5 +130,6 @@
   <!-- Hidden color picker -->
   <input type="hidden" id="colorPicker2" value="#000000ff">
 </div>
+
 
 

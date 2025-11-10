@@ -284,6 +284,8 @@ private function getSpaceMembers($id_space)
             }
         }
 
+        $data['editable'] = $reff_note;
+
         $this->load->view('template/conva_editor/header_blank', $data);
         $this->load->view('notes/canvas_blank', $data);
         $this->load->view('template/conva_editor/footer_blank', $data);
@@ -337,31 +339,45 @@ private function getSpaceMembers($id_space)
 
         $this->db->trans_start();
 
-        // Insert ke tabel 'notes'
-        $note_data = [
-            'reff_note'         => uniqid('NOTE_'),
-            'name_notes'        => $data->note_name,
-            'type_note'        => "blank", // Ini BUKAN PDF, jadi null
-            'file_note'         => null, // Ini BUKAN PDF, jadi null
-            'id_space_note'     => $id_space,
-            'state'             => 'active',
-            'created_by'        => $id_user,
-            'canvas_data_path'  => $relative_path, // Ini path JSON kita
-            'created_date'      => date('Y-m-d H:i:s'),
-            'updated_date'      => date('Y-m-d H:i:s')
-        ];
-        $this->db->insert('notes', $note_data);
-        $note_id = $this->db->insert_id(); // Ambil ID yang baru
+        $note = $this->db->get_where('notes', ['reff_note' => $data->note_name])->row_array();
 
-        // Insert ke tabel 'notes_share' (untuk kepemilikan)
-        $share_data = [
-            'id_users'          => $id_user,
-            'id_notes'          => $note_id,
-            'role'              => 'owner',
-            'created_by'        => $id_user,
-            'created_date'      => date('Y-m-d H:i:s')
-        ];
-        $this->db->insert('notes_share', $share_data);
+        if($note == null) {
+                    // Insert ke tabel 'notes'
+            $note_data = [
+                'reff_note'         => uniqid('NOTE_'),
+                'name_notes'        => $data->note_name,
+                'type_note'        => "blank", // Ini BUKAN PDF, jadi null
+                'file_note'         => null, // Ini BUKAN PDF, jadi null
+                'id_space_note'     => $id_space,
+                'state'             => 'active',
+                'created_by'        => $id_user,
+                'canvas_data_path'  => $relative_path, // Ini path JSON kita
+                'created_date'      => date('Y-m-d H:i:s'),
+                'updated_date'      => date('Y-m-d H:i:s')
+            ];
+            $this->db->insert('notes', $note_data);
+            $note_id = $this->db->insert_id(); // Ambil ID yang baru
+
+            // Insert ke tabel 'notes_share' (untuk kepemilikan)
+            $share_data = [
+                'id_users'          => $id_user,
+                'id_notes'          => $note_id,
+                'role'              => 'owner',
+                'created_by'        => $id_user,
+                'created_date'      => date('Y-m-d H:i:s')
+            ];
+            $this->db->insert('notes_share', $share_data);
+        } else {
+            
+            $note_id = $note['id_note'];
+            $this->db->set('canvas_data_path',$relative_path);
+            $this->db->set('updated_date',getCurrentDate());
+            $this->db->where('reff_note',$data->note_name);
+            $this->db->update('notes');
+
+        }   
+
+      
 
         $this->db->trans_complete();
 

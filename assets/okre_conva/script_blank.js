@@ -926,72 +926,90 @@ async function saveBlankCanvasToServer(noteName) {
   }
 }
 
-saveTopBtn?.addEventListener("click", () => {
-  Swal.fire({
-    title: "Simpan Coretan",
-    text: "Masukkan nama untuk file coretan Anda:",
-    input: "text",
-    inputPlaceholder: "Coretan Rapat Mingguan...",
-    showCancelButton: true,
-    confirmButtonText: "Simpan",
-    cancelButtonText: "Batal",
+saveTopBtn?.addEventListener("click", async () => {
+  var cekedit = document.getElementById("editable");
 
-    // Validasi input (tidak boleh kosong)
-    inputValidator: (value) => {
-      if (!value) {
-        return "Nama file tidak boleh kosong!";
-      }
-    },
-  }).then(async (result) => {
-    // 2. Jika pengguna mengklik "Simpan" (dan valid)
-    if (result.isConfirmed && result.value) {
-      const noteName = result.value;
-      Swal.fire({
-        title: "Menyimpan...",
-        text: "Mengirim data ke server. Mohon tunggu.",
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        },
-      });
-
-      try {
-        // 4. Panggil "Mesin"
-        const saveResult = await saveBlankCanvasToServer(noteName);
+  // ✅ Jika nilai editable kosong → tampilkan input SweetAlert
+  if (cekedit.value.trim() === "") {
+    Swal.fire({
+      title: "Simpan Coretan",
+      text: "Masukkan nama untuk file coretan Anda:",
+      input: "text",
+      inputPlaceholder: "Coretan Rapat Mingguan...",
+      showCancelButton: true,
+      confirmButtonText: "Simpan",
+      cancelButtonText: "Batal",
+      inputValidator: (value) => {
+        if (!value) {
+          return "Nama file tidak boleh kosong!";
+        }
+      },
+    }).then(async (result) => {
+      if (result.isConfirmed && result.value) {
+        const noteName = result.value;
 
         Swal.fire({
-          title: "Tersimpan!",
-          text:
-            "Coretan Anda telah disimpan (ID: " +
-            saveResult.new_note_id +
-            "). Apa selanjutnya?",
-          icon: "success",
-          showCancelButton: true,
-          confirmButtonText: "Kembali",
-          cancelButtonText: "Tetap di Sini",
-          confirmButtonColor: "#3085d6",
-          cancelButtonColor: "#6c757d",
-        }).then((result) => {
-          if (result.isConfirmed) {
-            // Pengguna memilih "Kembali"
-            const backUrlInput = document.getElementById("back_url");
-
-            if (backUrlInput && backUrlInput.value) {
-              window.location.href = backUrlInput.value;
-            } else {
-              console.error(
-                "VEX: Input #back_url tidak ditemukan atau kosong."
-              );
-            }
-          }
-          // Jika 'isDismissed' (klik "Tetap di Sini"), alert tertutup.
+          title: "Menyimpan...",
+          text: "Mengirim data ke server. Mohon tunggu.",
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
         });
-      } catch (err) {
-        // 6. Tampilkan notifikasi Gagal
-        Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
+
+        try {
+          const saveResult = await saveBlankCanvasToServer(noteName);
+
+          Swal.fire({
+            title: "Tersimpan!",
+            text:
+              "Coretan Anda telah disimpan (ID: " +
+              saveResult.new_note_id +
+              "). Apa selanjutnya?",
+            icon: "success",
+            showCancelButton: true,
+            confirmButtonText: "Kembali",
+            cancelButtonText: "Tetap di Sini",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              const backUrlInput = document.getElementById("back_url");
+              if (backUrlInput?.value) {
+                window.location.href = backUrlInput.value;
+              }
+            }
+          });
+        } catch (err) {
+          Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
+        }
       }
+    });
+  }
+  // ✅ Jika cekedit TIDAK kosong → langsung simpan
+  else {
+    const noteName = cekedit.value.trim(); // ambil nama dari input editable
+
+    Swal.fire({
+      title: "Menyimpan...",
+      text: "Mengirim data ke server. Mohon tunggu.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    try {
+      const saveResult = await saveBlankCanvasToServer(noteName);
+
+      Swal.fire({
+        title: "Tersimpan!",
+        text:
+          "Coretan Anda telah disimpan (ID: " + saveResult.new_note_id + ").",
+        icon: "success",
+      });
+    } catch (err) {
+      Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
     }
-  }); // Akhir .then()
+  }
 });
 
 /* [TAMBAHKAN INI DI FILE JS "BLANK CANVAS" ANDA] */
@@ -1026,47 +1044,51 @@ document.addEventListener("DOMContentLoaded", () => {
   btnSimpanPerubahan.addEventListener("click", () => {
     modalInstance.hide();
 
-    Swal.fire({
-      title: "Simpan Coretan",
-      text: "Masukkan nama untuk file coretan Anda:",
-      input: "text",
-      inputPlaceholder: "Coretan Rapat Mingguan...",
-      showCancelButton: true,
-      confirmButtonText: "Simpan & Tutup",
-      cancelButtonText: "Batal",
-      inputValidator: (value) => {
-        if (!value) {
-          return "Nama file tidak boleh kosong!";
+    if (currentNoteReff == null) {
+      Swal.fire({
+        title: "Simpan Coretan",
+        text: "Masukkan nama untuk file coretan Anda:",
+        input: "text",
+        inputPlaceholder: "Coretan Rapat Mingguan...",
+        showCancelButton: true,
+        confirmButtonText: "Simpan & Tutup",
+        cancelButtonText: "Batal",
+        inputValidator: (value) => {
+          if (!value) {
+            return "Nama file tidak boleh kosong!";
+          }
+        },
+      }).then(async (result) => {
+        // 4c. Jika pengguna memasukkan nama dan mengklik "Simpan & Tutup"
+        if (result.isConfirmed && result.value) {
+          const noteName = result.value;
+
+          // Tampilkan "Loading"
+          Swal.fire({
+            title: "Menyimpan...",
+            text: "Mengirim data ke server. Mohon tunggu.",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
+
+          try {
+            // 4d. Panggil "Mesin" Penyimpanan
+            await saveBlankCanvasToServer(noteName);
+
+            // 4e. SUKSES: Tutup SweetAlert 'loading' dan REDIRECT
+            Swal.close();
+            window.location.href = backUrl; // Navigasi ke halaman 'notes'
+          } catch (err) {
+            // 4f. GAGAL: Tampilkan error
+            Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
+          }
         }
-      },
-    }).then(async (result) => {
-      // 4c. Jika pengguna memasukkan nama dan mengklik "Simpan & Tutup"
-      if (result.isConfirmed && result.value) {
-        const noteName = result.value;
-
-        // Tampilkan "Loading"
-        Swal.fire({
-          title: "Menyimpan...",
-          text: "Mengirim data ke server. Mohon tunggu.",
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
-
-        try {
-          // 4d. Panggil "Mesin" Penyimpanan
-          await saveBlankCanvasToServer(noteName);
-
-          // 4e. SUKSES: Tutup SweetAlert 'loading' dan REDIRECT
-          Swal.close();
-          window.location.href = backUrl; // Navigasi ke halaman 'notes'
-        } catch (err) {
-          // 4f. GAGAL: Tampilkan error
-          Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
-        }
-      }
-      // Jika pengguna 'Batal' dari SweetAlert, tidak terjadi apa-apa.
-    });
+        // Jika pengguna 'Batal' dari SweetAlert, tidak terjadi apa-apa.
+      });
+    } else {
+      console.log("ckk");
+    }
   }); // Akhir listener 'btnSimpanPerubahan'
 }); // Akhir DOMContentLoaded
