@@ -310,7 +310,6 @@ private function getSpaceMembers($id_space)
             return;
         }
         
-
         // 3. Buat nama file unik untuk data JSON
         $file_name = 'note-' . uniqid() . '-' . time() . '.json';
 
@@ -331,8 +330,6 @@ private function getSpaceMembers($id_space)
             return;
         }
 
-        // 5. Simpan ke Database (Gunakan Transaksi)
-        // (Asumsikan Anda sudah load model dan session)
         $this->load->model('note_model'); // Ganti dengan nama model Anda
         $id_user = $this->session->userdata('id');
         $id_space = $this->session->userdata('workspace_sesi'); // (Contoh)

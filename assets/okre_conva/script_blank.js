@@ -929,7 +929,6 @@ async function saveBlankCanvasToServer(noteName) {
 saveTopBtn?.addEventListener("click", async () => {
   var cekedit = document.getElementById("editable");
 
-  // ✅ Jika nilai editable kosong → tampilkan input SweetAlert
   if (cekedit.value.trim() === "") {
     Swal.fire({
       title: "Simpan Coretan",
@@ -1041,10 +1040,12 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.href = backUrl;
   });
 
-  btnSimpanPerubahan.addEventListener("click", () => {
+  btnSimpanPerubahan.addEventListener("click", async () => {
     modalInstance.hide();
+    var cekedit = document.getElementById("editable");
 
-    if (currentNoteReff == null) {
+    // ✅ Jika nama coretan masih kosong → minta input nama
+    if (cekedit.value.trim() === "") {
       Swal.fire({
         title: "Simpan Coretan",
         text: "Masukkan nama untuk file coretan Anda:",
@@ -1059,11 +1060,9 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         },
       }).then(async (result) => {
-        // 4c. Jika pengguna memasukkan nama dan mengklik "Simpan & Tutup"
         if (result.isConfirmed && result.value) {
           const noteName = result.value;
 
-          // Tampilkan "Loading"
           Swal.fire({
             title: "Menyimpan...",
             text: "Mengirim data ke server. Mohon tunggu.",
@@ -1074,21 +1073,43 @@ document.addEventListener("DOMContentLoaded", () => {
           });
 
           try {
-            // 4d. Panggil "Mesin" Penyimpanan
             await saveBlankCanvasToServer(noteName);
 
-            // 4e. SUKSES: Tutup SweetAlert 'loading' dan REDIRECT
             Swal.close();
-            window.location.href = backUrl; // Navigasi ke halaman 'notes'
+            window.location.href = backUrl;
           } catch (err) {
-            // 4f. GAGAL: Tampilkan error
             Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
           }
         }
-        // Jika pengguna 'Batal' dari SweetAlert, tidak terjadi apa-apa.
       });
-    } else {
-      console.log("ckk");
     }
-  }); // Akhir listener 'btnSimpanPerubahan'
+    // ✅ Jika cekedit TIDAK kosong → langsung simpan tanpa input
+    else {
+      const noteName = cekedit.value.trim(); // ambil nama dari input
+
+      Swal.fire({
+        title: "Menyimpan...",
+        text: "Mengirim data ke server. Mohon tunggu.",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      try {
+        await saveBlankCanvasToServer(noteName);
+
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Catatan berhasil disimpan.",
+          icon: "success",
+          confirmButtonText: "OK",
+        }).then(() => {
+          window.location.href = backUrl;
+        });
+      } catch (err) {
+        Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
+      }
+    }
+  });
 }); // Akhir DOMContentLoaded
