@@ -36,8 +36,13 @@ const settingsBtn = document.getElementById("settingsBtn");
 const touchToggleBtn = document.getElementById("touchToggleBtn");
 const touchToggleIcon = touchToggleBtn?.querySelector("i");
 
+const idNote = document.getElementById("noteid").value;
+const isReadonly = window.isReadonly || false;
+
 const toolButtons = [quickBrush, quickEraser, panToggleBtn];
 const saveTopBtn = document.getElementById("saveTopBtn");
+
+const shareModal = new bootstrap.Modal(document.getElementById("shareModal"));
 
 // function setActiveTool(selectedTool) {
 //   tool = selectedTool;
@@ -1112,4 +1117,156 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
+  function waitModalHidden(modalElement) {
+    console.log("cekk");
+    return new Promise((resolve) => {
+      const handler = () => {
+        modalElement.removeEventListener("hidden.bs.modal", handler);
+        resolve();
+      };
+      modalElement.addEventListener("hidden.bs.modal", handler);
+    });
+  }
+
+  /* [GANTI FUNGSI 'handleSaveFlow' LAMA ANDA DENGAN INI] */
+
+  async function handleSaveFlow(mode = "save") {
+    try {
+      // 1. Variabel internal. Ini BENAR.
+
+      let noteName = "";
+      const cekedit = document.getElementById("editable");
+
+      // !! PERBAIKAN BUG B ADA DI SINI !!
+      // Ganti 'idNote' menjadi 'noteIdToUse'
+      if (idNote === "new") {
+        // --- MODE "BARU" ---
+        noteName = cekedit ? cekedit.value.trim() : "";
+
+        if (noteName === "") {
+          const nameResult = await Swal.fire({
+            title: "Simpan Coretan Baru",
+            text: "Masukkan nama untuk file coretan Anda:",
+            input: "text",
+            inputPlaceholder: "Coretan Rapat...",
+            showCancelButton: true,
+            confirmButtonText: "Simpan",
+            cancelButtonText: "Batal",
+            inputValidator: (value) => {
+              if (!value) return "Nama file tidak boleh kosong!";
+            },
+          });
+          if (!nameResult.isConfirmed || !nameResult.value) return null;
+          noteName = nameResult.value;
+        }
+
+        // Tampilkan "Loading" (HANYA jika mode 'save')
+        if (mode === "save") {
+          Swal.fire({
+            title: "Menyimpan...",
+            text: "Membuat data baru. Mohon tunggu.",
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading(),
+          });
+        }
+
+        // Panggil "Mesin Create"
+        const saveResult = await saveBlankCanvasToServer(noteName);
+        window.currentNoteReff = saveResult.new_note_id;
+        if (cekedit) cekedit.value = noteName;
+        return saveResult.new_note_id;
+      } else {
+        // --- MODE "EDIT" ---
+        if (mode === "save") {
+          Swal.fire({
+            title: "Memperbarui...",
+            text: "Menyimpan perubahan Anda. Mohon tunggu.",
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading(),
+          });
+        }
+        // Panggil "Mesin Update" (Ganti 'saveBlankCanvasToServer' dengan 'updateCanvasToServer')
+        await saveBlankCanvasToServer(noteName); // <-- (Pastikan Anda menggunakan 'update')
+        return noteIdToUse;
+      }
+    } catch (err) {
+      Swal.fire(
+        "Error",
+        "Terjadi kesalahan saat menyimpan: " + err.message,
+        "error"
+      );
+      throw err;
+    }
+  }
+
+  /* [GANTI LISTENER 'saveShareChanges' LAMA ANDA DENGAN INI] */
+
+  document
+    .getElementById("saveShareChanges")
+    .addEventListener("click", async () => {
+      try {
+        const selectedUsers = [];
+        document.querySelectorAll("#sharedUserList li").forEach((li) => {
+          const roleElement = li.querySelector(".changeRole");
+          if (roleElement) {
+            selectedUsers.push({
+              id: li.dataset.userId,
+              role: roleElement.value,
+            });
+          }
+        });
+
+        if (idNote == "new") {
+          // !! PERBAIKAN BUG A ADA DI SINI !!
+          // 1. HAPUS 'Swal.fire({ title: "Menyimpan Note..." })' DARI SINI.
+          // 2. TUTUP modal Bootstrap DULU (opsional, tapi disarankan)
+          shareModal.hide();
+          await waitModalHidden(document.getElementById("shareModal"));
+
+          // Baru panggil SweetAlert
+          const newNoteId = await handleSaveFlow("share");
+
+          if (!newNoteId) {
+            return; // Pengguna membatalkan input nama
+          }
+
+          idNote = newNoteId; // Perbarui ID
+        }
+
+        // 4. Lanjutkan ke 'share'
+        // (Pastikan 'executeShare' ada)
+        await executeShare(idNote, selectedUsers);
+      } catch (err) {
+        // Tangkap error dari 'handleSaveFlow' ATAU 'fetch'
+        // (Swal.fire error sudah ditangani di dalam 'handleSaveFlow' atau 'executeShare')
+        console.error("VEX: Gagal total pada alur Share:", err);
+      }
+    });
+
+  /**
+   * (Pastikan Anda memiliki 'executeShare' helper ini)
+   */
+  async function executeShare(noteId, users) {
+    Swal.fire({
+      // Beri 'loading' untuk proses 'share'
+      title: "Membagikan...",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    const res = await fetch(`${baseUrl}notes/share_to_users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_note: noteId, users: users }),
+    });
+
+    const result = await res.json();
+    Swal.close(); // Tutup 'loading'
+
+    if (result.success) {
+      showToast("✅ Dokumen berhasil dibagikan.");
+    } else {
+      showToast("❌ Gagal menyimpan pembagian dokumen.", false);
+    }
+  }
 }); // Akhir DOMContentLoaded

@@ -267,9 +267,13 @@ private function getSpaceMembers($id_space)
             'restored_canvas_data' => NULL // Default (untuk mode 'Baru')
         ];
 
+        $note_id = "new";
+
         if ($reff_note) {
         
             $note = $this->Note_model->get_note_by_reff($reff_note); 
+
+            $note_id = $note->id_note;
 
             if ($note && !empty($note->canvas_data_path)) {
                 
@@ -285,6 +289,7 @@ private function getSpaceMembers($id_space)
         }
 
         $data['editable'] = $reff_note;
+        $data['note_id'] = $note_id;
 
         $this->load->view('template/conva_editor/header_blank', $data);
         $this->load->view('notes/canvas_blank', $data);
@@ -522,8 +527,7 @@ public function save_pdf_server()
     // ==================================================
     // Simpan & Load Canvas JSON (Konva)
     // ==================================================
-   public function save_canvas_json($id_note)
-{
+   public function save_canvas_json($id_note) {
     $id_user = $this->session->userdata('id');
     $access = $this->getUserAccess($id_note, $id_user);
 
@@ -612,49 +616,52 @@ public function share_to_users()
     $id_user_aktif = $this->session->userdata('id');
     $workspace_id = $this->session->userdata('workspace_sesi');
 
-    $note = $this->db->get_where('notes', [
-        'id_note' => $id_note,
-        'id_space_note' => $workspace_id
-    ])->row_array();
 
-    if (!$note) {
-        echo json_encode(['success' => false, 'message' => 'Dokumen tidak ditemukan atau bukan milik workspace ini.']);
-        return;
-    }
+        $note = $this->db->get_where('notes', [
+            'id_note' => $id_note,
+            'id_space_note' => $workspace_id
+        ])->row_array();
 
-    foreach ($users as $user) {
-        if (empty($user['id'])) continue;
-
-        $user_id = $user['id'];
-        $role = $user['role'] ?? 'viewer';
-
-        $exists = $this->db->get_where('notes_share', [
-            'id_notes' => $id_note,
-            'id_users' => $user_id
-        ])->num_rows();
-
-        if ($exists == 0) {
-            $insertData = [
-                'id_notes' => $id_note,
-                'id_users' => $user_id,
-                'role' => $role,
-                'state_note_share' => 'active',
-                'created_by' => $id_user_aktif,
-                'created_date' => date('Y-m-d H:i:s')
-            ];
-
-            $this->db->insert('notes_share', $insertData);
-            $dbError = $this->db->error(); // ✅ cek error database
-
-            if ($dbError['code'] != 0) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'DB Error: ' . $dbError['message']
-                ]);
-                return;
-            }
+        if (!$note) {
+            echo json_encode(['success' => false, 'message' => 'Dokumen tidak ditemukan atau bukan milik workspace ini.']);
+            return;
         }
-    }
+
+            foreach ($users as $user) {
+                if (empty($user['id'])) continue;
+
+                $user_id = $user['id'];
+                $role = $user['role'] ?? 'viewer';
+
+                $exists = $this->db->get_where('notes_share', [
+                    'id_notes' => $id_note,
+                    'id_users' => $user_id
+                ])->num_rows();
+
+                if ($exists == 0) {
+                    $insertData = [
+                        'id_notes' => $id_note,
+                        'id_users' => $user_id,
+                        'role' => $role,
+                        'state_note_share' => 'active',
+                        'created_by' => $id_user_aktif,
+                        'created_date' => date('Y-m-d H:i:s')
+                    ];
+
+                    $this->db->insert('notes_share', $insertData);
+                    $dbError = $this->db->error(); // ✅ cek error database
+
+                    if ($dbError['code'] != 0) {
+                        echo json_encode([
+                            'success' => false,
+                            'message' => 'DB Error: ' . $dbError['message']
+                        ]);
+                        return;
+                    }
+                }
+            }
+
+
 
     echo json_encode(['success' => true]);
 }
