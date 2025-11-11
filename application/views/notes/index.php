@@ -70,7 +70,7 @@
         <div class="card-body text-center">
           <h2 class="mb-4">Upload PDF Baru atau Mulai Canvas Kosong</h2>
           <div class="d-flex justify-content-center gap-3 mb-3">
-            <button type="button" class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <button type="button" class="btn btn-primary rounded-pill" data-toggle="modal" data-target="#uploadModal">
               <i class="fas fa-upload me-1"></i> Upload & Edit
             </button>
             <form action="<?= base_url('notes/canvas_blank') ?>" method="post">
@@ -83,12 +83,14 @@
       </div>
 
       <!-- Modal Upload -->
-      <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-              <h5 class="modal-title"><i class="fas fa-file-upload me-1"></i> Upload Dokumen PDF</h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary ">
+              <h5 class="modal-title text-white"><i class="fas fa-file-upload me-1"></i> Upload Dokumen PDF</h5>
+              <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
             </div>
             <form id="uploadForm" action="<?= base_url('notes/upload_action') ?>" method="post" enctype="multipart/form-data">
               <div class="modal-body">
@@ -103,7 +105,7 @@
               </div>
               <div class="modal-footer">
                 <button type="submit" class="btn btn-primary rounded-pill">Upload</button>
-                <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
               </div>
             </form>
           </div>
@@ -213,10 +215,10 @@
                     <?php endif; ?>
 
                     <?php if($role == 'owner'): ?>
-                      <button class="btn btn-sm btn-success rounded-pill me-1 btnShare"
+                      <!-- <button class="btn btn-sm btn-success rounded-pill me-1 btnShare"
                               data-id="<?= $n['id_note'] ?>" title="Bagikan">
                         <i class="fas fa-share"></i>
-                      </button>
+                      </button> -->
                       <a href="<?= base_url('notes/delete/'.$n['id_note']) ?>"
                          onclick="return confirm('Yakin hapus dokumen ini?')"
                          class="btn btn-sm btn-danger rounded-pill" title="Hapus">

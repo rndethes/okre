@@ -20,10 +20,12 @@
         <i class="fa-solid fa-arrow-left"></i>
         <span class="btn-text">&nbsp;Batalkan</span>
       </a>
-      <button id="shareBtn" class="top-btn">
-        <i class="fa-solid fa-share-nodes"></i>
-        <span class="btn-text">&nbsp;Bagikan</span>
-      </button>
+      <?php if($role == 'owner') { ?>
+        <button id="shareBtn" class="top-btn">
+          <i class="fa-solid fa-share-nodes"></i>
+          <span class="btn-text">&nbsp;Bagikan</span>
+        </button>
+      <?php } ?>
       <button id="saveServerTopBtn" class="top-btn">
         <i class="fa-solid fa-cloud-arrow-up"></i>
         <span class="btn-text">&nbsp;Simpan</span>
@@ -233,7 +235,45 @@
         </div>
       `;
       userList.appendChild(li);
-      li.querySelector('.btnRemoveUser').addEventListener('click', () => li.remove());
+      li.querySelector('.btnRemoveUser').addEventListener('click', async () => {
+          const swalResult = await Swal.fire({
+            title: `Hapus ${userName}?`,
+            text: "Anda yakin ingin menghapus akses pengguna ini?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Hapus',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#d33',
+          });
+
+          if (!swalResult.isConfirmed) {
+            return; // Pengguna membatalkan
+          }
+          li.style.opacity = '0.5';
+          const formData = new FormData();
+          formData.append('id_note', idNote); // 'idNote' adalah variabel global Anda
+          formData.append('id_user', userId);
+
+          try {
+            const res = await fetch(`${baseUrl}notes/remove_shared_user`, {
+              method: 'POST',
+              body: formData
+            });
+            
+            const result = await res.json();
+
+            if (result.success) {
+              li.remove();
+              showToast('✅ User berhasil dihapus.');
+            } else {
+              li.style.opacity = '1';
+              showToast(`❌ Gagal: ${result.message}`, false);
+            }
+          } catch (err) {
+            li.style.opacity = '1';
+            showToast('❌ Error koneksi.', false);
+          }
+        });
       li.querySelector('.changeRole').addEventListener('change', function() {
         const badge = li.querySelector('.badge');
         const newRole = this.value;
@@ -257,11 +297,17 @@
     // ========== SIMPAN PEMBAGIAN ==========
     document.getElementById('saveShareChanges').addEventListener('click', async () => {
       const selectedUsers = [];
-      document.querySelectorAll('#sharedUserList li').forEach(li => {
-        selectedUsers.push({ id: li.dataset.userId, role: li.querySelector('.changeRole').value });
-      });
+        document.querySelectorAll('#sharedUserList li[data-user-id]').forEach(li => {
+          const roleElement = li.querySelector('.changeRole');
+          if (roleElement) {
+            selectedUsers.push({ 
+              id: li.dataset.userId, 
+              role: roleElement.value 
+            });
+          }
+        });
 
-      const res = await fetch(`${baseUrl}index.php/notes/share_to_users`, {
+      const res = await fetch(`${baseUrl}/notes/share_to_users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_note: idNote, users: selectedUsers })

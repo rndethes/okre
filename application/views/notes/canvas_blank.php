@@ -1,49 +1,62 @@
 
   <div id="leftbar">
-  <div class="left-top">
-    <div id="addPageBtn" class="left-icon" title="Tambah Halaman">
-      <i class="fa-solid fa-plus"></i>
-    </div>
-    <div id="previewPanel" aria-live="polite" aria-label="Preview halaman"></div>
+    <div class="left-top">
+      <div id="addPageBtn" class="left-icon" title="Tambah Halaman">
+        <i class="fa-solid fa-plus"></i>
+      </div>
+      <div id="previewPanel" aria-live="polite" aria-label="Preview halaman"></div>
 
-    <div id="deletePageBtn" class="left-icon" title="Hapus Halaman">
-      <i class="fa-solid fa-trash"></i>
+      <div id="deletePageBtn" class="left-icon" title="Hapus Halaman">
+        <i class="fa-solid fa-trash"></i>
+      </div>
     </div>
-  </div>
 
-  <div class="sidebar-footer">
+  <!-- <div class="sidebar-footer">
     <div id="settingsBtn" class="left-icon" title="Pengaturan">
       <i class="fa-solid fa-gear"></i>
     </div>
-  </div>
+  </div> -->
 </div>
 
 
 
   <div id="main-area">
     <div id="topbar">
-      <div class="left"><h2>
-  <img src="http://localhost/projectint/okre/assets/img/logo.png" alt="OKRE Logo" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;">
-  OKRE Sketch
-</h2><div style="color:var(--muted);font-size:13px;margin-left:12px">Canvas Blank</div></div>
+      <div class="left">
+        <h2>
+          <img src="<?= base_url() ?>assets/img/logo.png" alt="OKRE Logo" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;">
+          OKRE Sketch
+        </h2>
+        <div style="color:var(--muted);font-size:13px;margin-left:12px">Canvas Blank</div>
+      </div>
       <input type="hidden" id="editable" value="<?= $editable ?>">
       <input type="hidden" id="back_url" value="<?= base_url() ?>notes/index/<?= $this->session->userdata('workspace_sesi') ?>/space">
-      <div class="actions" style="display:flex;gap:10px;align-items:center">
-        <a href="<?= base_url() ?>notes/index/<?= $this->session->userdata('workspace_sesi') ?>/space" id="cancelBtn" class="top-btn">
-          <i class="fa-solid fa-arrow-left"></i> <span class="btn-text">&nbsp;Batalkan</span>
-        </a>
-        <button id="shareBtn" class="top-btn">
-        <i class="fa-solid fa-share-nodes"></i>
-        <span class="btn-text">&nbsp;Bagikan</span>
-      </button>
-        <button id="downloadTopBtn" class="top-btn"><i class="fa-solid fa-download"></i><span class="btn-text">&nbsp;Download</span></button>
-        <button id="saveTopBtn" class="top-btn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="btn-text">&nbsp;Simpan</span></button>
-      </div>
+        <div class="actions" style="display:flex;gap:10px;align-items:center">
+          <a href="<?= base_url() ?>notes/index/<?= $this->session->userdata('workspace_sesi') ?>/space" id="cancelBtn" class="top-btn">
+            <i class="fa-solid fa-arrow-left"></i> <span class="btn-text">&nbsp;Batalkan</span>
+          </a>
+          <button id="shareBtn" class="top-btn">
+            <i class="fa-solid fa-share-nodes"></i>
+            <span class="btn-text">&nbsp;Bagikan</span>
+          </button>
+          <button id="saveTopBtn" class="top-btn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="btn-text">&nbsp;Simpan</span></button>
+          <div class="dropdown">
+              <button id="downloadTopBtn" class="top-btn">
+                <i class="fa-solid fa-download"></i>
+                <span class="btn-text">&nbsp;Download </span> 
+                <i class="fa-solid fa-caret-down"></i>
+              </button>
+            <div class="dropdown-content" id="downloadDropdown">
+              <button class="small-btn-dropdown" id="savePdfBtn"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+              <button class="small-btn-dropdown" id="downloadJpgBtn"><i class="fa-solid fa-image"></i> JPG</button>
+            </div>
+          </div>
+        </div>
     </div>
 
     <div id="container" class="container"></div>
-  </div>
-</div>
+
+
 
   <div class="modal fade" id="confirmModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered custom-modal-top">
@@ -74,6 +87,10 @@
         </div>
 
         <div class="modal-body">
+          <div class="form-group mb-2">
+              <label for="doc-name" class="form-control-label">Nama File</label>
+              <input class="form-control" type="text" value="<?= $name_note ?>" id="doc-name">
+          </div>
           <p>Atur siapa saja yang dapat mengakses dokumen ini.</p>
 
           <div class="card mb-3">
@@ -107,17 +124,10 @@
     </div>
   </div>
 
-<!-- SETTINGS POPUP -->
-<div class="popup-sidebar" id="settingsPopup" style="position:fixed; left:96px; bottom:84px; display:none; z-index:1200;">
-  <label>Mode tampilan</label>
-  <div style="display:flex;gap:8px;margin-bottom:8px;">
-    <button class="small-btn" id="themeLightBtn">Light</button>
-    <button class="small-btn" id="themeDarkBtn">Dark</button>
-  </div>
-</div>
+
 
 <!-- BOTTOM TOOLBAR -->
-<div class="bottom-toolbar" id="bottomToolbar">
+  <div class="bottom-toolbar" id="bottomToolbar">
     <div class="tool-btn" id="quickBrush" title="Brush">
       <i class="fa-solid fa-pen-nib"></i>
     </div>
@@ -177,9 +187,11 @@
 
   <!-- Hidden color picker -->
   <input type="hidden" id="colorPicker2" value="#000000ff">
-   <input type="text" id="noteid" value="<?= $note_id ?>">
-    <input type="text" id="colorPicker2" value="#000000ff">
+   <input type="hidden" id="noteid" value="<?= $note_id ?>">
+
+
 </div>
+
 
  <script>
   document.addEventListener('DOMContentLoaded', async function() {
@@ -221,15 +233,11 @@
       modalInstance?.hide();
     });
 
- 
-
-    // ========== MODE READONLY ==========
     if (isReadonly) {
       document.getElementById('saveServerTopBtn').disabled = true;
       document.getElementById('shareBtn').disabled = true;
     }
 
-    // ========== BAGIKAN DOKUMEN ==========
     const shareBtn = document.getElementById('shareBtn');
     const shareModal = new bootstrap.Modal(document.getElementById('shareModal'));
     const memberSelect = document.getElementById('memberSelect');

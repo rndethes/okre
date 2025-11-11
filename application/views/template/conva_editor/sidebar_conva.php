@@ -14,9 +14,9 @@
     </div>
 
     <!-- Footer: settings icon -->
-    <div class="sidebar-footer">
+    <!-- <div class="sidebar-footer">
       <div id="settingsBtn" class="left-icon" title="Settings"><i class="fa-solid fa-gear"></i></div>
-    </div>
+    </div> -->
   </div>
 
   <!-- MAIN AREA -->

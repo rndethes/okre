@@ -177,9 +177,6 @@ private function getSpaceMembers($id_space)
     redirect('notes/konva/' . $reff . '/' .$dataUpload['file_name'] . "/" . $id_space);
 }
 
-    // ==================================================
-    // Editor Konva (PDF + Coretan)
-    // ==================================================
     public function konva($reff = null,$filename = null) {
         $id_space   = $this->session->userdata('workspace_sesi');
         if (!$filename) redirect('notes/index/' . $id_space);
@@ -269,11 +266,16 @@ private function getSpaceMembers($id_space)
 
         $note_id = "new";
 
+        $name_note = "";
+
         if ($reff_note) {
         
             $note = $this->Note_model->get_note_by_reff($reff_note); 
 
             $note_id = $note->id_note;
+
+            $name_note = $note->name_notes;
+
 
             if ($note && !empty($note->canvas_data_path)) {
                 
@@ -290,6 +292,7 @@ private function getSpaceMembers($id_space)
 
         $data['editable'] = $reff_note;
         $data['note_id'] = $note_id;
+        $data['name_note'] = $name_note;
 
         $this->load->view('template/conva_editor/header_blank', $data);
         $this->load->view('notes/canvas_blank', $data);
@@ -374,7 +377,7 @@ private function getSpaceMembers($id_space)
             $note_id = $note['id_note'];
             $this->db->set('canvas_data_path',$relative_path);
             $this->db->set('updated_date',getCurrentDate());
-            $this->db->where('reff_note',$data->note_name);
+            $this->db->where('id_note',$note_id);
             $this->db->update('notes');
 
         }   
@@ -390,11 +393,16 @@ private function getSpaceMembers($id_space)
             $this->output->set_status_header(500);
             echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan ke database.']);
         } else {
-            // 7. Sukses
+
+            $noteNew = $this->db->get_where('notes', ['id_note' => $note_id])->row_array();
+
+            $reff_note = $noteNew['reff_note'];
+              
             echo json_encode([
                 'status' => 'success', 
                 'message' => 'Canvas berhasil disimpan!',
-                'new_note_id' => $note_id
+                'new_note_id' => $note_id,
+                'reff_note' => $reff_note // <-- DATA YANG HILANG SEKARANG DITAMBAHKAN
             ]);
         }
     }
@@ -412,7 +420,7 @@ private function getSpaceMembers($id_space)
             $filename .= '.pdf';
         }
 
-        $path = FCPATH . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $filename;
+        $path = base_url() . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $filename;
 
         if (!file_exists($path)) {
             show_error("Gagal memuat PDF. File tidak ditemukan di: " . $path, 404, 'File Tidak Ditemukan');
@@ -500,8 +508,7 @@ public function save_pdf_server()
     // ==================================================
     // Hapus Dokumen
     // ==================================================
-    public function delete($id)
-{
+    public function delete($id) {
     $note = $this->db->get_where('notes', ['id_note' => $id])->row_array();
     $id_user = $this->session->userdata('id');
 
@@ -599,23 +606,18 @@ public function get_note_owner($id_note)
     }
 }
 
-    // ==================================================
-    // Bagikan Notes ke Anggota Space
-    // ==================================================
-public function share_to_users()
-{
-    $data = json_decode(file_get_contents('php://input'), true);
-    $id_note = $data['id_note'] ?? null;
-    $users = $data['users'] ?? [];
+    public function share_to_users() {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $id_note = $data['id_note'] ?? null;
+        $users_from_frontend = $data['users'] ?? [];
 
-    if (!$id_note || empty($users)) {
-        echo json_encode(['success' => false, 'message' => 'Data tidak lengkap.']);
-        return;
-    }
+        if (!$id_note) {
+            echo json_encode(['success' => false, 'message' => 'ID Note tidak ada.']);
+            return;
+        }
 
-    $id_user_aktif = $this->session->userdata('id');
-    $workspace_id = $this->session->userdata('workspace_sesi');
-
+        $id_user_aktif = $this->session->userdata('id');
+        $workspace_id = $this->session->userdata('workspace_sesi');
 
         $note = $this->db->get_where('notes', [
             'id_note' => $id_note,
@@ -623,48 +625,111 @@ public function share_to_users()
         ])->row_array();
 
         if (!$note) {
-            echo json_encode(['success' => false, 'message' => 'Dokumen tidak ditemukan atau bukan milik workspace ini.']);
+            echo json_encode(['success' => false, 'message' => 'Dokumen tidak ditemukan.']);
             return;
         }
 
-            foreach ($users as $user) {
-                if (empty($user['id'])) continue;
+        $this->db->trans_start();
 
-                $user_id = $user['id'];
-                $role = $user['role'] ?? 'viewer';
+        $old_shares_db = $this->db
+            ->where('id_notes', $id_note)
+            ->where('role !=', 'owner') 
+            ->get('notes_share')
+            ->result_array();
 
-                $exists = $this->db->get_where('notes_share', [
+        $old_shares_map = [];
+        foreach ($old_shares_db as $share) {
+            $old_shares_map[$share['id_users']] = $share['role']; 
+        }
+
+        $new_users_map = [];
+        foreach ($users_from_frontend as $user) {
+            if (empty($user['id'])) continue;
+            $new_users_map[$user['id']] = $user['role'] ?? 'viewer';
+        }
+
+        foreach ($new_users_map as $new_user_id => $new_role) {
+
+            if (!isset($old_shares_map[$new_user_id])) {
+                $insertData = [
                     'id_notes' => $id_note,
-                    'id_users' => $user_id
-                ])->num_rows();
+                    'id_users' => $new_user_id,
+                    'role' => $new_role,
+                    'state_note_share' => 'active',
+                    'created_by' => $id_user_aktif,
+                    'created_date' => date('Y-m-d H:i:s')
+                ];
+                $this->db->insert('notes_share', $insertData);
 
-                if ($exists == 0) {
-                    $insertData = [
-                        'id_notes' => $id_note,
-                        'id_users' => $user_id,
-                        'role' => $role,
-                        'state_note_share' => 'active',
-                        'created_by' => $id_user_aktif,
-                        'created_date' => date('Y-m-d H:i:s')
-                    ];
-
-                    $this->db->insert('notes_share', $insertData);
-                    $dbError = $this->db->error(); // ✅ cek error database
-
-                    if ($dbError['code'] != 0) {
-                        echo json_encode([
-                            'success' => false,
-                            'message' => 'DB Error: ' . $dbError['message']
-                        ]);
-                        return;
-                    }
-                }
+            } else if ($old_shares_map[$new_user_id] != $new_role) {
+                $this->db
+                    ->where('id_notes', $id_note)
+                    ->where('id_users', $new_user_id)
+                    ->update('notes_share', ['role' => $new_role]);
             }
+        }
+        foreach ($old_shares_map as $old_user_id => $old_role) {
+            if (!isset($new_users_map[$old_user_id])) {
+                $this->db
+                    ->where('id_notes', $id_note)
+                    ->where('id_users', $old_user_id)
+                    ->delete('notes_share');
+            }
+        }
+
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) {
+            echo json_encode(['success' => false, 'message' => 'Gagal menyinkronkan data.']);
+        } else {
+            echo json_encode(['success' => true, 'message' => 'Akses berhasil diperbarui.']);
+        }
+    }
 
 
 
-    echo json_encode(['success' => true]);
-}
+    public function remove_shared_user() {
+        // Kita pakai POST agar lebih aman
+        $id_note = $this->input->post('id_note');
+        $id_user_to_delete = $this->input->post('id_user');
+        
+        $id_user_aktif = $this->session->userdata('id');
+        $workspace_id = $this->session->userdata('workspace_sesi');
+
+        // 1. Validasi Input
+        if (!$id_note || !$id_user_to_delete) {
+            echo json_encode(['success' => false, 'message' => 'Data tidak lengkap.']);
+            return;
+        }
+
+        // 2. Verifikasi Kepemilikan (Opsional tapi disarankan)
+        $note = $this->db->get_where('notes', [
+            'id_note' => $id_note,
+            'id_space_note' => $workspace_id
+        ])->row_array();
+
+        if (!$note) {
+            echo json_encode(['success' => false, 'message' => 'Dokumen tidak ditemukan.']);
+            return;
+        }
+
+        // 3. Verifikasi Keamanan: Jangan biarkan 'owner' dihapus
+        $share_entry = $this->db->get_where('notes_share', [
+            'id_notes' => $id_note,
+            'id_users' => $id_user_to_delete
+        ])->row_array();
+
+        if ($share_entry && $share_entry['role'] === 'owner') {
+            echo json_encode(['success' => false, 'message' => 'Tidak dapat menghapus pemilik (owner) dokumen.']);
+            return;
+        }
+
+        // 4. Lakukan Hapus
+        $this->db->where('id_notes', $id_note);
+        $this->db->where('id_users', $id_user_to_delete);
+        $this->db->delete('notes_share');
+
+        echo json_encode(['success' => true, 'message' => 'User dihapus.']);
+    }
 
 
 
@@ -777,4 +842,116 @@ private function getUserAccess($id_note, $id_user)
              ->set_content_type('application/json')
              ->set_output(json_encode(['status' => 'success', 'message' => 'Canvas tersimpan!']));
     }
+
+
+
+public function share_to_users_blank()
+{
+    $data = json_decode(file_get_contents('php://input'), true);
+    $id_note = $data['id_note'] ?? null;
+    $users_from_frontend = $data['users'] ?? [];
+    
+    // (Data baru dari modal 'Simpan & Bagikan')
+    $note_name = $data['note_name'] ?? null; 
+    $canvas_data = $data['canvas_data'] ?? null; 
+    
+    $id_user_aktif = $this->session->userdata('id');
+    $workspace_id = $this->session->userdata('workspace_sesi');
+
+    // Mulai Transaksi
+    $this->db->trans_start();
+
+    if ($id_note === 'new') {
+        
+        if (empty($note_name) || empty($canvas_data)) {
+            echo json_encode(['success' => false, 'message' => 'Data canvas atau nama note baru kosong.']);
+            return;
+        }
+
+        // 2. Simpan File JSON (Logika dari 'save_blank_canvas')
+        $namafolder = checkSpaceById($workspace_id);
+        $file_name = 'note-' . uniqid() . '-' . time() . '.json';
+
+        $folder = FCPATH . "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_blank/";
+        if (!file_exists($folder)) mkdir($folder, 0777, true);
+    
+        $relative_path = "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_blank/" . $file_name;
+        
+        $absolute_path = FCPATH . $relative_path;
+
+        $json_data_string = json_encode(['canvas_data' => $canvas_data]); // Simpan hanya data canvas
+        
+        if (file_put_contents($absolute_path, $json_data_string) === FALSE) {
+            echo json_encode(['success' => false, 'message' => 'Gagal menulis file JSON ke server.']);
+            return;
+        }
+
+        $note_data = [
+            'reff_note'         => uniqid('NOTE_'),
+            'name_notes'        => $note_name,
+            'type_note'         => 'blank',
+            'canvas_data_path'  => $relative_path,
+            'id_space_note'     => $workspace_id,
+            'state'             => 'active',
+            'created_by'        => $id_user_aktif,
+            'created_date'      => date('Y-m-d H:i:s'),
+            'updated_date'      => date('Y-m-d H:i:s')
+        ];
+        $this->db->insert('notes', $note_data);
+        $id_note = $this->db->insert_id(); // <-- KITA DAPAT ID BARU DI SINI
+
+        // 4. Tambahkan 'owner' (WAJIB)
+        $share_data = [
+            'id_users' => $id_user_aktif, 'id_notes' => $id_note, 'role' => 'owner',
+            'created_by' => $id_user_aktif, 'created_date' => date('Y-m-d H:i:s')
+        ];
+        $this->db->insert('notes_share', $share_data);
+
+    } else {
+        
+        $note = $this->db->get_where('notes', ['id_note' => $id_note, 'id_space_note' => $workspace_id])->row_array();
+        if (!$note) {
+            echo json_encode(['success' => false, 'message' => 'Dokumen tidak ditemukan.']);
+            $this->db->trans_rollback();
+            return;
+        }
+    
+        if ($note_name && $note['name_notes'] != $note_name) {
+            $this->db->where('id_note', $id_note)->update('notes', ['name_notes' => $note_name]);
+        }
+    }
+
+    
+    $old_shares_db = $this->db->where('id_notes', $id_note)->where('role !=', 'owner')->get('notes_share')->result_array();
+    $old_shares_map = [];
+    foreach ($old_shares_db as $share) { $old_shares_map[$share['id_users']] = $share['role']; }
+    $new_users_map = [];
+    foreach ($users_from_frontend as $user) { if (!empty($user['id'])) $new_users_map[$user['id']] = $user['role'] ?? 'viewer'; }
+
+    foreach ($new_users_map as $new_user_id => $new_role) {
+        if (!isset($old_shares_map[$new_user_id])) {
+            $insertData = [
+                'id_notes' => $id_note, 'id_users' => $new_user_id, 'role' => $new_role,
+                'state_note_share' => 'active', 'created_by' => $id_user_aktif, 'created_date' => date('Y-m-d H:i:s')
+            ];
+            $this->db->insert('notes_share', $insertData);
+        } else if ($old_shares_map[$new_user_id] != $new_role) {
+            $this->db->where('id_notes', $id_note)->where('id_users', $new_user_id)->update('notes_share', ['role' => $new_role]);
+        }
+    }
+    foreach ($old_shares_map as $old_user_id => $old_role) {
+        if (!isset($new_users_map[$old_user_id])) {
+            $this->db->where('id_notes', $id_note)->where('id_users', $old_user_id)->delete('notes_share');
+        }
+    }
+
+    $this->db->trans_complete();
+
+    if ($this->db->trans_status() === FALSE) {
+        echo json_encode(['success' => false, 'message' => 'Gagal menyinkronkan data.']);
+    } else {
+        echo json_encode(['success' => true, 'message' => 'Akses berhasil diperbarui.', 'new_note_id' => $id_note]);
+    }
+}
+
 }

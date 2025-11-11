@@ -20,7 +20,7 @@
   const progressFill = el("progressFill");
   const previewPanel = el("previewPanel");
   const pagesToggle = el("pagesToggle");
-  const settingsBtn = el("settingsBtn");
+  // const settingsBtn = el("settingsBtn");
   const settingsPopup = el("settingsPopup");
   const themeLightBtn = el("themeLightBtn");
   const themeDarkBtn = el("themeDarkBtn");
@@ -59,7 +59,7 @@
 
   const toolButtons = [quickBrush, quickEraser, panToggleBtn];
 
-  const pdfUrl = window.pdfUrl || ""; /* ========== STATE ========== */
+  const pdfUrl = document.getElementById("pdf_url").value;
 
   const ZOOM_LEVELS = [0.5, 0.75, 0.9, 1.0, 1.25, 1.5, 2.0];
 
@@ -749,12 +749,12 @@
   //   applyZoomTransform(true);
   // }); /* ========== POPUP / SETTINGS ========== */
 
-  settingsBtn?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (!settingsPopup) return;
-    settingsPopup.style.display =
-      settingsPopup.style.display === "block" ? "none" : "block";
-  });
+  // settingsBtn?.addEventListener("click", (e) => {
+  //   e.stopPropagation();
+  //   if (!settingsPopup) return;
+  //   settingsPopup.style.display =
+  //     settingsPopup.style.display === "block" ? "none" : "block";
+  // });
   settingsPopup?.addEventListener("click", (e) => e.stopPropagation());
   themeLightBtn?.addEventListener("click", setThemeLight);
   themeDarkBtn?.addEventListener("click", setThemeDark);

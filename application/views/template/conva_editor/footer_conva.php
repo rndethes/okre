@@ -113,7 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnZoom = document.getElementById('btnZoom');
   const popupZoom = document.getElementById('popupZoom');
 
-  const settingsBtn = document.getElementById('settingsBtn');
+
   const settingsPopup = document.getElementById('settingsPopup');
 
   function togglePopup(popup) {
@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btnDraw.addEventListener('click', e => { e.stopPropagation(); togglePopup(popupDraw); });
   btnZoom.addEventListener('click', e => { e.stopPropagation(); togglePopup(popupZoom); });
-  settingsBtn.addEventListener('click', e => { e.stopPropagation(); togglePopup(settingsPopup); });
+
   document.addEventListener('click', (e) => {
     // Tambahkan cek untuk .popup-sidebar
     if (!e.target.closest('.popup') && !e.target.closest('.popup-sidebar')) {

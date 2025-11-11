@@ -1,4 +1,10 @@
 /* ========== Konfigurasi ========== */
+"use strict"; // Defensive: ensure DOM elements exist before continuing
+
+function el(id) {
+  return document.getElementById(id);
+}
+const savePdfBtn = el("savePdfBtn");
 const DEFAULT_W = 1080;
 const DEFAULT_H = 1350;
 const ZOOM_LEVELS = [0.5, 0.75, 0.9, 1.0, 1.25, 1.5, 2.0];
@@ -19,6 +25,9 @@ let size = 4;
 let allowTouchDrawing = true;
 
 /* UI elements */
+function showProgress() {}
+function setProgress() {}
+function hideProgress() {}
 const zoomPercentLabel = document.getElementById("zoomPercent");
 const addPageBtn = document.getElementById("addPageBtn");
 const undoBtn = document.getElementById("btnUndo");
@@ -38,32 +47,34 @@ const touchToggleIcon = touchToggleBtn?.querySelector("i");
 
 const idNote = document.getElementById("noteid").value;
 const isReadonly = window.isReadonly || false;
+const downloadJpgBtn = el("downloadJpgBtn");
+const downloadTopBtn = el("downloadTopBtn");
+const downloadDropdown = el("downloadDropdown");
 
 const toolButtons = [quickBrush, quickEraser, panToggleBtn];
 const saveTopBtn = document.getElementById("saveTopBtn");
 
 const shareModal = new bootstrap.Modal(document.getElementById("shareModal"));
 
-// function setActiveTool(selectedTool) {
-//   tool = selectedTool;
-//   if (panMode) {
-//     setPanMode(false); // Matikan pan mode (dan cursor grab)
-//   }
-//   toolButtons.forEach((btn) => {
-//     if (btn.id.toLowerCase().includes(selectedTool)) {
-//       btn.classList.add("active");
-//     } else {
-//       btn.classList.remove("active");
-//     }
-//   });
+const toast = new bootstrap.Toast(document.getElementById("liveToast"));
+const showToast = (msg, success = true) => {
+  const toastEl = document.getElementById("liveToast");
+  const msgEl = document.getElementById("toastMessage");
+  msgEl.textContent = msg;
+  toastEl.className = `toast align-items-center text-white border-0 bg-${
+    success ? "success" : "danger"
+  }`;
+  toast.show();
+};
 
-//   let newCursor = "default"; // Default-nya panah
-
-//   document.querySelectorAll(".draw-layer").forEach((c) => {
-//     c.style.cursor = newCursor;
-//   });
-//   console.log("VEX: Alat diubah ke ->", tool);
-// }
+downloadTopBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  container?.dispatchEvent(new PointerEvent("pointerdown", e));
+  downloadDropdown?.classList.toggle("show");
+});
+document.addEventListener("click", () =>
+  downloadDropdown?.classList.remove("show")
+);
 
 function setActiveTool(selectedTool) {
   currentTool = selectedTool;
@@ -548,13 +559,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const settingsPopup = document.getElementById("settingsPopup");
-  if (settingsPopup) {
-    settingsPopup.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
-  }
-
   /* zoom/pan */
   document.getElementById("zoomInBtn").addEventListener("click", () => {
     if (currentZoomIndex < ZOOM_LEVELS.length - 1) {
@@ -820,15 +824,12 @@ function setThemeDark() {
   document.getElementById("appRoot")?.classList.add("theme-dark");
 }
 
-settingsBtn?.addEventListener("click", (e) => {
-  e.stopPropagation();
-  if (!settingsPopup) return;
-  settingsPopup.style.display =
-    settingsPopup.style.display === "block" ? "none" : "block";
-});
-settingsPopup?.addEventListener("click", (e) => e.stopPropagation());
-themeLightBtn?.addEventListener("click", setThemeLight);
-themeDarkBtn?.addEventListener("click", setThemeDark);
+// settingsBtn?.addEventListener("click", (e) => {
+//   e.stopPropagation();
+//   if (!settingsPopup) return;
+//   settingsPopup.style.display =
+//     settingsPopup.style.display === "block" ? "none" : "block";
+// });
 
 /* init: create two pages */
 // (function init() {
@@ -930,70 +931,224 @@ async function saveBlankCanvasToServer(noteName) {
     throw err;
   }
 }
+// ===========================
+// 🔹 DOWNLOAD HANDLERS
+// ===========================
+
+// --- Generate PDF dengan coretan (pakai pdf-lib)
+async function generateAnnotatedPdfBytes(onProgress = null) {
+  if (typeof PDFLib === "undefined") throw new Error("PDFLib belum dimuat.");
+  const pages = document.querySelectorAll(".page");
+  const doc = await PDFLib.PDFDocument.create();
+
+  for (let i = 0; i < pages.length; i++) {
+    const base = pages[i].querySelector("canvas:not(.draw-layer)");
+    const draw = pages[i].querySelector("canvas.draw-layer");
+
+    // Gabungkan layer dasar dan coretan
+    const merged = document.createElement("canvas");
+    merged.width = base.width;
+    merged.height = base.height;
+    const ctx = merged.getContext("2d");
+    ctx.drawImage(base, 0, 0);
+    if (draw) ctx.drawImage(draw, 0, 0);
+
+    const imgData = merged.toDataURL("image/png");
+    const page = doc.addPage([merged.width, merged.height]);
+    const png = await doc.embedPng(imgData);
+    page.drawImage(png, {
+      x: 0,
+      y: 0,
+      width: merged.width,
+      height: merged.height,
+    });
+
+    if (onProgress) onProgress(Math.round(((i + 1) / pages.length) * 100));
+    await new Promise((r) => setTimeout(r, 0)); // beri waktu render
+  }
+
+  return await doc.save();
+}
+
+// --- Tombol Download PDF
+savePdfBtn?.addEventListener("click", async () => {
+  try {
+    showProgress();
+    setProgress(5);
+    const bytes = await generateAnnotatedPdfBytes((p) =>
+      setProgress(5 + Math.round(p * 0.9))
+    );
+    setProgress(95);
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "annotated.pdf";
+    a.click();
+    hideProgress();
+  } catch (err) {
+    console.error(err);
+    hideProgress();
+    alert("❌ Gagal membuat PDF.");
+  }
+});
+
+// --- Tombol Download JPG
+downloadJpgBtn?.addEventListener("click", async () => {
+  try {
+    const choice = prompt('📸 Pilih halaman (misal: "1,3" atau "all")');
+    if (!choice) return;
+
+    const pages = document.querySelectorAll(".page");
+
+    // Semua halaman
+    if (choice.toLowerCase() === "all") {
+      let totalH = 0,
+        maxW = 0;
+      const canvases = [];
+
+      for (const p of pages) {
+        const base = p.querySelector("canvas:not(.draw-layer)");
+        const draw = p.querySelector("canvas.draw-layer");
+        const merged = document.createElement("canvas");
+        merged.width = base.width;
+        merged.height = base.height;
+        const ctx = merged.getContext("2d");
+        ctx.drawImage(base, 0, 0);
+        if (draw) ctx.drawImage(draw, 0, 0);
+        canvases.push(merged);
+        totalH += merged.height;
+        if (merged.width > maxW) maxW = merged.width;
+      }
+
+      const final = document.createElement("canvas");
+      final.width = maxW;
+      final.height = totalH;
+      const fctx = final.getContext("2d");
+      let y = 0;
+      for (const c of canvases) {
+        fctx.drawImage(c, 0, y);
+        y += c.height;
+      }
+
+      const link = document.createElement("a");
+      link.href = final.toDataURL("image/jpeg", 0.9);
+      link.download = "semua_halaman.jpg";
+      link.click();
+      alert("✅ Semua halaman diunduh sebagai JPG.");
+      return;
+    }
+
+    // Halaman tertentu
+    const parts = choice
+      .split(",")
+      .map((x) => parseInt(x.trim(), 10))
+      .filter((n) => !isNaN(n));
+
+    for (const n of parts) {
+      if (n < 1 || n > pages.length) continue;
+      const base = pages[n - 1].querySelector("canvas:not(.draw-layer)");
+      const draw = pages[n - 1].querySelector("canvas.draw-layer");
+      const merged = document.createElement("canvas");
+      merged.width = base.width;
+      merged.height = base.height;
+      const ctx = merged.getContext("2d");
+      ctx.drawImage(base, 0, 0);
+      if (draw) ctx.drawImage(draw, 0, 0);
+      const link = document.createElement("a");
+      link.href = merged.toDataURL("image/jpeg", 0.9);
+      link.download = "halaman_" + n + ".jpg";
+      link.click();
+    }
+    alert("✅ Halaman JPG berhasil diunduh.");
+  } catch (err) {
+    console.error(err);
+    alert("❌ Gagal membuat JPG.");
+  }
+});
+
+// ===========================
+// 🔹 BLANK CANVAS MODE
+// ===========================
+
+function createBlankCanvasMode() {
+  container.innerHTML = "";
+
+  const w = 800,
+    h = 1000;
+  const pageDiv = document.createElement("div");
+  pageDiv.className = "page";
+  pageDiv.style.position = "relative";
+  pageDiv.style.margin = "8px auto";
+  pageDiv.style.background = "#fff";
+  pageDiv.style.width = w + "px";
+  pageDiv.style.height = h + "px";
+
+  // lapisan dasar putih
+  const base = document.createElement("canvas");
+  base.width = w;
+  base.height = h;
+  const ctx = base.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  pageDiv.appendChild(base);
+
+  // lapisan coretan
+  const draw = document.createElement("canvas");
+  draw.className = "draw-layer";
+  draw.width = w;
+  draw.height = h;
+  draw.style.position = "absolute";
+  draw.style.left = "0";
+  draw.style.top = "0";
+  draw.style.touchAction = "none";
+  pageDiv.appendChild(draw);
+
+  container.appendChild(pageDiv);
+
+  // simpan state & aktifkan alat gambar
+  pageStates = [{ dataURL: null, undoStack: [], redoStack: [] }];
+  enableDrawingOnCanvas(draw, 0);
+}
+
+document.addEventListener("click", () => {
+  downloadDropdown?.classList.remove("show");
+});
+
+/* [GANTI LISTENER 'saveTopBtn' LAMA ANDA DENGAN INI] */
 
 saveTopBtn?.addEventListener("click", async () => {
   var cekedit = document.getElementById("editable");
 
-  if (cekedit.value.trim() === "") {
-    Swal.fire({
-      title: "Simpan Coretan",
-      text: "Masukkan nama untuk file coretan Anda:",
-      input: "text",
-      inputPlaceholder: "Coretan Rapat Mingguan...",
-      showCancelButton: true,
-      confirmButtonText: "Simpan",
-      cancelButtonText: "Batal",
-      inputValidator: (value) => {
-        if (!value) {
-          return "Nama file tidak boleh kosong!";
-        }
-      },
-    }).then(async (result) => {
-      if (result.isConfirmed && result.value) {
-        const noteName = result.value;
+  let isNewNote = window.currentNoteReff == null;
 
-        Swal.fire({
-          title: "Menyimpan...",
-          text: "Mengirim data ke server. Mohon tunggu.",
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
+  try {
+    let noteName = cekedit ? cekedit.value.trim() : "";
+    let saveResult;
 
-        try {
-          const saveResult = await saveBlankCanvasToServer(noteName);
+    // 1. TENTUKAN NAMA (jika "Baru")
+    if (isNewNote && noteName === "") {
+      const nameResult = await Swal.fire({
+        title: "Simpan Coretan",
+        text: "Masukkan nama untuk file coretan Anda:",
+        input: "text",
+        inputPlaceholder: "Coretan Rapat Mingguan...",
+        showCancelButton: true,
+        confirmButtonText: "Simpan",
+        cancelButtonText: "Batal",
+        inputValidator: (value) => {
+          if (!value) return "Nama file tidak boleh kosong!";
+        },
+      });
 
-          Swal.fire({
-            title: "Tersimpan!",
-            text:
-              "Coretan Anda telah disimpan (ID: " +
-              saveResult.new_note_id +
-              "). Apa selanjutnya?",
-            icon: "success",
-            showCancelButton: true,
-            confirmButtonText: "Kembali",
-            cancelButtonText: "Tetap di Sini",
-          }).then((result) => {
-            if (result.isConfirmed) {
-              const backUrlInput = document.getElementById("back_url");
-              if (backUrlInput?.value) {
-                window.location.href = backUrlInput.value;
-              }
-            }
-          });
-        } catch (err) {
-          Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
-        }
+      if (!nameResult.isConfirmed || !nameResult.value) {
+        return; // Pengguna Batal
       }
-    });
-  }
-  // ✅ Jika cekedit TIDAK kosong → langsung simpan
-  else {
-    const noteName = cekedit.value.trim(); // ambil nama dari input editable
+      noteName = nameResult.value;
+    }
 
+    // 2. TAMPILKAN "LOADING"
     Swal.fire({
-      title: "Menyimpan...",
+      title: isNewNote ? "Menyimpan..." : "Memperbarui...",
       text: "Mengirim data ke server. Mohon tunggu.",
       allowOutsideClick: false,
       didOpen: () => {
@@ -1001,18 +1156,63 @@ saveTopBtn?.addEventListener("click", async () => {
       },
     });
 
-    try {
-      const saveResult = await saveBlankCanvasToServer(noteName);
+    // 3. JALANKAN "MESIN"
+    if (isNewNote) {
+      saveResult = await saveBlankCanvasToServer(noteName);
+    } else {
+      saveResult = await saveBlankCanvasToServer(noteName);
+    }
 
+    const reffNote = saveResult.reff_note;
+    const noteId = saveResult.new_note_id;
+
+    // 4a. Perbarui state global
+    window.currentNoteReff = reffNote;
+
+    // 4b. Perbarui input di DOM (untuk 'Share' & 'Save' berikutnya)
+    if (cekedit) cekedit.value = noteName;
+    const noteIdInput = document.getElementById("noteid"); // (Input di modal 'Share')
+    if (noteIdInput) noteIdInput.value = noteId;
+
+    // 4c. Perbarui URL Browser (Permintaan Utama Anda)
+    const newUrl = BaseURL + "notes/canvas_blank/" + reffNote;
+    window.history.pushState({ path: newUrl }, "", newUrl);
+
+    console.log("VEX: State dan URL berhasil diperbarui ke:", newUrl);
+    // ======== PERBAIKAN VEX SELESAI ========
+
+    // 5. TAMPILKAN "SUKSES"
+    if (isNewNote) {
+      // (Dialog "Kembali" Anda)
       Swal.fire({
         title: "Tersimpan!",
         text:
-          "Coretan Anda telah disimpan (ID: " + saveResult.new_note_id + ").",
+          "Coretan Anda telah disimpan (ID: " + noteId + "). Apa selanjutnya?",
         icon: "success",
+        showCancelButton: true,
+        confirmButtonText: "Kembali",
+        cancelButtonText: "Tetap di Sini",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const backUrlInput = document.getElementById("back_url");
+          if (backUrlInput?.value) {
+            window.location.href = backUrlInput.value;
+          }
+        }
       });
-    } catch (err) {
-      Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
+    } else {
+      // (Dialog "Sukses" sederhana untuk 'update')
+      Swal.fire({
+        title: "Tersimpan!",
+        text: "Perubahan Anda telah disimpan.",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
     }
+  } catch (err) {
+    // 6. TANGKAP ERROR
+    Swal.fire("Error", "Terjadi kesalahan: " + err.message, "error");
   }
 });
 
@@ -1117,156 +1317,114 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
-  function waitModalHidden(modalElement) {
-    console.log("cekk");
-    return new Promise((resolve) => {
-      const handler = () => {
-        modalElement.removeEventListener("hidden.bs.modal", handler);
-        resolve();
-      };
-      modalElement.addEventListener("hidden.bs.modal", handler);
-    });
-  }
+}); // Akhir DOMContentLoaded
 
-  /* [GANTI FUNGSI 'handleSaveFlow' LAMA ANDA DENGAN INI] */
+/* [GANTI LISTENER 'saveShareChanges' LAMA ANDA DENGAN INI] */
 
-  async function handleSaveFlow(mode = "save") {
+document
+  .getElementById("saveShareChanges")
+  .addEventListener("click", async () => {
+    // 1. Ambil data dari Modal
+    const idNote = document.getElementById("noteid").value; // Akan "new" jika baru
+    const noteName = document.getElementById("doc-name").value.trim();
+
+    // 2. VALIDASI (Rules #1)
+    if (noteName === "") {
+      showToast("❌ Nama file tidak boleh kosong.", false);
+      return;
+    }
+
+    // 3. Ambil data User
+    const selectedUsers = [];
+    document
+      .querySelectorAll("#sharedUserList li[data-user-id]")
+      .forEach((li) => {
+        const roleElement = li.querySelector(".changeRole");
+        if (roleElement) {
+          selectedUsers.push({
+            id: li.dataset.userId,
+            role: roleElement.value,
+          });
+        }
+      });
+
+    // 4. Tampilkan 'Loading'
+    const saveBtn = document.getElementById("saveShareChanges");
+    saveBtn.disabled = true;
+    saveBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm"></span> Menyimpan...';
+
     try {
-      // 1. Variabel internal. Ini BENAR.
+      // 5. Siapkan 'payload'
+      let payload = {
+        id_note: idNote,
+        note_name: noteName,
+        users: selectedUsers,
+        canvas_data: null, // Default
+      };
 
-      let noteName = "";
-      const cekedit = document.getElementById("editable");
-
-      // !! PERBAIKAN BUG B ADA DI SINI !!
-      // Ganti 'idNote' menjadi 'noteIdToUse'
+      // 6. Jika "Baru", ambil data canvas (Rules #2)
       if (idNote === "new") {
-        // --- MODE "BARU" ---
-        noteName = cekedit ? cekedit.value.trim() : "";
+        console.log("VEX: Mode 'Baru'. Mengambil snapshot canvas...");
+        saveAllDrawStates(); // Paksa simpan snapshot
+        const canvasData = pages.map((p) => ({ dataURL: p.state.dataURL }));
+        payload.canvas_data = canvasData;
+      }
 
-        if (noteName === "") {
-          const nameResult = await Swal.fire({
-            title: "Simpan Coretan Baru",
-            text: "Masukkan nama untuk file coretan Anda:",
-            input: "text",
-            inputPlaceholder: "Coretan Rapat...",
-            showCancelButton: true,
-            confirmButtonText: "Simpan",
-            cancelButtonText: "Batal",
-            inputValidator: (value) => {
-              if (!value) return "Nama file tidak boleh kosong!";
-            },
-          });
-          if (!nameResult.isConfirmed || !nameResult.value) return null;
-          noteName = nameResult.value;
+      // 7. Kirim SATU 'fetch' ke 'share_to_users'
+      const res = await fetch(`${BaseURL}notes/share_to_users_blank`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        showToast("✅ Dokumen berhasil dibagikan.");
+
+        // (PENTING) Perbarui ID di DOM jika ini 'new'
+        if (idNote === "new") {
+          document.getElementById("noteid").value = result.new_note_id;
+          window.currentNoteReff = result.new_note_id; // Perbarui state global
         }
 
-        // Tampilkan "Loading" (HANYA jika mode 'save')
-        if (mode === "save") {
-          Swal.fire({
-            title: "Menyimpan...",
-            text: "Membuat data baru. Mohon tunggu.",
-            allowOutsideClick: false,
-            didOpen: () => Swal.showLoading(),
-          });
-        }
-
-        // Panggil "Mesin Create"
-        const saveResult = await saveBlankCanvasToServer(noteName);
-        window.currentNoteReff = saveResult.new_note_id;
-        if (cekedit) cekedit.value = noteName;
-        return saveResult.new_note_id;
+        shareModal.hide();
       } else {
-        // --- MODE "EDIT" ---
-        if (mode === "save") {
-          Swal.fire({
-            title: "Memperbarui...",
-            text: "Menyimpan perubahan Anda. Mohon tunggu.",
-            allowOutsideClick: false,
-            didOpen: () => Swal.showLoading(),
-          });
-        }
-        // Panggil "Mesin Update" (Ganti 'saveBlankCanvasToServer' dengan 'updateCanvasToServer')
-        await saveBlankCanvasToServer(noteName); // <-- (Pastikan Anda menggunakan 'update')
-        return noteIdToUse;
+        showToast(`❌ Gagal: ${result.message}`, false);
       }
     } catch (err) {
-      Swal.fire(
-        "Error",
-        "Terjadi kesalahan saat menyimpan: " + err.message,
-        "error"
-      );
-      throw err;
+      showToast("❌ Error koneksi: " + err.message, false);
+    } finally {
+      // 8. Kembalikan tombol
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = "Simpan Perubahan";
     }
+  });
+
+/**
+ * MESIN SHARE: (Hanya 'Share', dengan 'loading' & 'toast')
+ */
+async function executeShare(noteId, users) {
+  Swal.fire({
+    title: "Membagikan...",
+    allowOutsideClick: false,
+    didOpen: () => Swal.showLoading(),
+  });
+
+  const res = await fetch(`${BaseURL}notes/share_to_users_blank`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id_note: noteId, users: users }),
+  });
+
+  const result = await res.json();
+  Swal.close();
+
+  if (result.success) {
+    showToast("✅ Dokumen berhasil dibagikan.");
+    shareModal.hide(); // Tutup modal Bootstrap
+  } else {
+    showToast(`❌ Gagal: ${result.message}`, false);
   }
-
-  /* [GANTI LISTENER 'saveShareChanges' LAMA ANDA DENGAN INI] */
-
-  document
-    .getElementById("saveShareChanges")
-    .addEventListener("click", async () => {
-      try {
-        const selectedUsers = [];
-        document.querySelectorAll("#sharedUserList li").forEach((li) => {
-          const roleElement = li.querySelector(".changeRole");
-          if (roleElement) {
-            selectedUsers.push({
-              id: li.dataset.userId,
-              role: roleElement.value,
-            });
-          }
-        });
-
-        if (idNote == "new") {
-          // !! PERBAIKAN BUG A ADA DI SINI !!
-          // 1. HAPUS 'Swal.fire({ title: "Menyimpan Note..." })' DARI SINI.
-          // 2. TUTUP modal Bootstrap DULU (opsional, tapi disarankan)
-          shareModal.hide();
-          await waitModalHidden(document.getElementById("shareModal"));
-
-          // Baru panggil SweetAlert
-          const newNoteId = await handleSaveFlow("share");
-
-          if (!newNoteId) {
-            return; // Pengguna membatalkan input nama
-          }
-
-          idNote = newNoteId; // Perbarui ID
-        }
-
-        // 4. Lanjutkan ke 'share'
-        // (Pastikan 'executeShare' ada)
-        await executeShare(idNote, selectedUsers);
-      } catch (err) {
-        // Tangkap error dari 'handleSaveFlow' ATAU 'fetch'
-        // (Swal.fire error sudah ditangani di dalam 'handleSaveFlow' atau 'executeShare')
-        console.error("VEX: Gagal total pada alur Share:", err);
-      }
-    });
-
-  /**
-   * (Pastikan Anda memiliki 'executeShare' helper ini)
-   */
-  async function executeShare(noteId, users) {
-    Swal.fire({
-      // Beri 'loading' untuk proses 'share'
-      title: "Membagikan...",
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
-
-    const res = await fetch(`${baseUrl}notes/share_to_users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id_note: noteId, users: users }),
-    });
-
-    const result = await res.json();
-    Swal.close(); // Tutup 'loading'
-
-    if (result.success) {
-      showToast("✅ Dokumen berhasil dibagikan.");
-    } else {
-      showToast("❌ Gagal menyimpan pembagian dokumen.", false);
-    }
-  }
-}); // Akhir DOMContentLoaded
+}
