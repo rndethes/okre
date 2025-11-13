@@ -70,7 +70,7 @@
         <div class="card-body text-center">
           <h2 class="mb-4">Upload PDF Baru atau Mulai Canvas Kosong</h2>
           <div class="d-flex justify-content-center gap-3 mb-3">
-            <button type="button" class="btn btn-primary rounded-pill" data-toggle="modal" data-target="#uploadModal">
+            <button type="button" class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#uploadModal">
               <i class="fas fa-upload me-1"></i> Upload & Edit
             </button>
             <form action="<?= base_url('notes/canvas_blank') ?>" method="post">
@@ -83,14 +83,12 @@
       </div>
 
       <!-- Modal Upload -->
-      <div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+      <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
           <div class="modal-content">
-            <div class="modal-header bg-primary ">
-              <h5 class="modal-title text-white"><i class="fas fa-file-upload me-1"></i> Upload Dokumen PDF</h5>
-              <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-              </button>
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title"><i class="fas fa-file-upload me-1"></i> Upload Dokumen PDF</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="uploadForm" action="<?= base_url('notes/upload_action') ?>" method="post" enctype="multipart/form-data">
               <div class="modal-body">
@@ -105,7 +103,7 @@
               </div>
               <div class="modal-footer">
                 <button type="submit" class="btn btn-primary rounded-pill">Upload</button>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Batal</button>
               </div>
             </form>
           </div>
@@ -136,12 +134,8 @@
                   $userId  = $this->session->userdata('id');
                   $role = 'none';
                   if (!$isOwner) {
-                      $this->db->select('role');
-                      $this->db->where('id_notes', $n['id_note']);
-                      $this->db->where('id_users', $userId);
-                      $this->db->where('state_note_share', 'active');
-                      $share = $this->db->get('notes_share')->row_array();
-                      if ($share) $role = $share['role'];
+                      $role = $n['role'] ?? 'none';
+                      $isOwner = ($role === 'owner');
                   } else {
                       $role = 'owner';
                   }
@@ -189,10 +183,9 @@
 
                   <td class="text-center">
                     <?php if(in_array($role, ['owner','editor','viewer'])): ?>
-                      <a href="<?= base_url('notes/view_pdf/'.$n['file_note'].'/'.$this->session->userdata('workspace_sesi')) ?>" 
-                      target="_blank" 
-                      class="btn btn-sm btn-info rounded-pill me-1" 
-                      title="Lihat">
+                     <a href="<?= base_url('notes/view_doc/'.$n['reff_note'].'/'.$this->session->userdata('workspace_sesi')) ?>" 
+                     class="btn btn-sm btn-info rounded-pill me-1" 
+                     title="Lihat">
                       <i class="fas fa-eye"></i>
                     </a>
 
@@ -215,15 +208,17 @@
                     <?php endif; ?>
 
                     <?php if($role == 'owner'): ?>
-                      <!-- <button class="btn btn-sm btn-success rounded-pill me-1 btnShare"
+                      <button class="btn btn-sm btn-success rounded-pill me-1 btnShare"
                               data-id="<?= $n['id_note'] ?>" title="Bagikan">
                         <i class="fas fa-share"></i>
-                      </button> -->
-                      <a href="<?= base_url('notes/delete/'.$n['id_note']) ?>"
-                         onclick="return confirm('Yakin hapus dokumen ini?')"
-                         class="btn btn-sm btn-danger rounded-pill" title="Hapus">
-                        <i class="fas fa-trash"></i>
-                      </a>
+                      </button>
+                      <button 
+                      class="btn btn-sm btn-danger rounded-pill btnDeleteNote" 
+                      data-id="<?= $n['id_note'] ?>" 
+                      data-name="<?= htmlspecialchars($n['name_notes'], ENT_QUOTES) ?>"title="Hapus">
+                      <i class="fas fa-trash"></i>
+                    </button>
+
                     <?php endif; ?>
                   </td>
                 </tr>
@@ -240,48 +235,225 @@
   </div>
 </div>
 
-<!-- ===================== MODAL BAGIKAN ===================== -->
+<!-- ===================== MODAL BAGIKAN (TAMPILAN SAMA DENGAN TOPBAR_CONVA) ===================== -->
 <div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <div class="modal-header bg-light">
-        <h5 class="modal-title" id="shareModalLabel">
-          <i class="fas fa-share-alt me-2"></i> Bagikan Dokumen ke Anggota Space
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-white border-bottom">
+        <h5 class="modal-title fw-semibold d-flex align-items-center text-dark" id="shareModalLabel">
+          <i class="fa-solid fa-share-nodes me-2 text-primary"></i> Bagikan Dokumen
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
       </div>
 
       <div class="modal-body">
         <input type="hidden" id="noteIdToShare">
+        <p class="text-muted mb-3">Atur siapa saja yang dapat mengakses dokumen ini.</p>
 
-        <p>Pilih anggota yang ingin diberi akses ke dokumen ini.</p>
+        <!-- Pemilik -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Pemilik:</label>
+          <input type="text" class="form-control bg-light" id="ownerNameText" readonly value="-">
+        </div>
 
-        <div class="input-group mb-3">
-          <select id="userSelect" class="form-select">
-            <option value="">-- Pilih pengguna --</option>
-            <?php foreach ($space_members as $member): ?>
-              <?php if ($member['id'] != $this->session->userdata('id')): ?>
-                <option value="<?= $member['id'] ?>"><?= $member['nama'] ?></option>
-              <?php endif; ?>
-            <?php endforeach; ?>
+        <!-- Tambahkan anggota -->
+        <label class="form-label fw-semibold">Pilih anggota space</label>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <select id="memberSelect" class="form-select flex-grow-1" style="min-width: 220px;">
+            <option value="">Pilih pengguna...</option>
           </select>
-
-          <select id="roleSelect" class="form-select" style="max-width:140px;">
+          <select id="roleSelect" class="form-select" style="width: 130px;">
             <option value="viewer">Viewer</option>
             <option value="editor">Editor</option>
           </select>
-
-          <button class="btn btn-primary" id="btnAddShare">Tambahkan</button>
+          <button id="btnAddUser" class="btn btn-primary">
+            <i class="fa fa-plus me-1"></i> Tambahkan
+          </button>
         </div>
 
-        <ul class="list-group" id="sharedUserList">
+        <!-- Daftar pengguna -->
+        <ul class="list-group" id="userList">
           <li class="list-group-item text-muted small text-center">Belum ada pengguna ditambahkan.</li>
         </ul>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
-        <button class="btn btn-success" id="btnSaveShare">Simpan Perubahan</button>
+      <div class="modal-footer bg-light border-top">
+        <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Tutup</button>
+        <button type="button" class="btn btn-primary rounded-pill" id="saveShareChanges">Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+#shareModal .form-label { margin-bottom: .3rem; }
+#shareModal .list-group-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#shareModal .roleSelect { width: 120px; }
+</style>
+
+
+<!-- ===================== SCRIPT BAGIKAN (IDENTIK TOPBAR_CONVA) ===================== -->
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+  const baseUrl = window.baseUrl || '<?= base_url() ?>';
+  const shareModalEl = document.getElementById('shareModal');
+  const shareModal = new bootstrap.Modal(shareModalEl);
+  const memberSelect = document.getElementById('memberSelect');
+  const addUserBtn = document.getElementById('btnAddUser');
+  const roleSelect = document.getElementById('roleSelect');
+  const userList = document.getElementById('userList'); 
+  const ownerText = document.getElementById('ownerNameText');
+  const noteIdInput = document.getElementById('noteIdToShare'); // hidden input untuk noteId
+
+  const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+  const showToast = (msg, success = true) => {
+    const toastEl = document.getElementById('liveToast');
+    const msgEl = document.getElementById('toastMessage');
+    msgEl.textContent = msg;
+    toastEl.className = `toast align-items-center text-white border-0 bg-${success ? 'success' : 'danger'}`;
+    toast.show();
+  };
+
+  // === Klik tombol "Bagikan" tiap baris dokumen ===
+  document.querySelectorAll('.btnShare').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const noteId = this.dataset.id; // ambil id note dari tombol
+      noteIdInput.value = noteId; // simpan di hidden input modal
+
+      let ownerId = await loadOwner(noteId);
+      await loadMembers(noteId, ownerId);
+      await loadSharedUsers(noteId);
+
+      shareModal.show();
+    });
+  });
+
+  async function loadOwner(noteId){
+    const res = await fetch(`${baseUrl}index.php/notes/get_note_owner/${noteId}`);
+    const data = await res.json();
+    if(data.success){
+      ownerText.value = data.owner.nama; // input readonly
+      return data.owner.id;
+    }
+    ownerText.value = '-';
+    return null;
+  }
+
+  async function loadMembers(noteId, ownerId){
+    memberSelect.innerHTML = '<option value="">Memuat...</option>';
+    const res = await fetch(`${baseUrl}index.php/notes/get_space_members/${noteId}`);
+    const data = await res.json();
+    memberSelect.innerHTML = '<option value="">Pilih pengguna...</option>';
+    data.forEach(u => {
+      if(u.id != ownerId){
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = `${u.nama} (${u.username})`;
+        memberSelect.appendChild(opt);
+      }
+    });
+  }
+
+  async function loadSharedUsers(noteId){
+    userList.innerHTML = '';
+    const res = await fetch(`${baseUrl}index.php/notes/get_shared_users/${noteId}`);
+    const data = await res.json();
+    if(!data.success || data.users.length === 0){
+      userList.innerHTML = '<li class="list-group-item text-muted small text-center">Belum ada pengguna ditambahkan.</li>';
+      return;
+    }
+    data.users.forEach(u => addSharedUserToList(u.id, u.nama, u.role));
+  }
+
+  function addSharedUserToList(userId, userName, role){
+    const li = document.createElement('li');
+    li.dataset.userId = userId;
+    li.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+    li.innerHTML = `
+      <div>
+        <strong>${userName}</strong>
+        <span class="badge bg-${role==='editor'?'primary':'secondary'} ms-2 text-uppercase">${role}</span>
+      </div>
+      <div>
+        <select class="form-select form-select-sm d-inline-block w-auto me-2 changeRole">
+          <option value="viewer" ${role==='viewer'?'selected':''}>Viewer</option>
+          <option value="editor" ${role==='editor'?'selected':''}>Editor</option>
+        </select>
+        <button class="btn btn-sm btn-outline-danger btnRemoveUser">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    `;
+    userList.appendChild(li);
+    li.querySelector('.btnRemoveUser').addEventListener('click', ()=>li.remove());
+    li.querySelector('.changeRole').addEventListener('change', function(){
+      const badge = li.querySelector('.badge');
+      const newRole = this.value;
+      badge.textContent = newRole;
+      badge.className = `badge bg-${newRole==='editor'?'primary':'secondary'} ms-2 text-uppercase`;
+    });
+  }
+
+  addUserBtn.addEventListener('click', function(){
+    const userId = memberSelect.value;
+    const userName = memberSelect.options[memberSelect.selectedIndex]?.textContent;
+    const role = roleSelect.value;
+    if(!userId) return showToast('Pilih pengguna terlebih dahulu!', false);
+        if(document.querySelector(`#userList li[data-user-id="${userId}"]`)){
+      showToast('Pengguna sudah ditambahkan.', false);
+      return;
+    }
+    addSharedUserToList(userId, userName, role);
+  });
+
+  document.getElementById('saveShareChanges').addEventListener('click', async () => {
+    const noteId = noteIdInput.value;
+    const selectedUsers = [];
+    document.querySelectorAll('#userList li').forEach(li => {
+      selectedUsers.push({
+        id: li.dataset.userId,
+        role: li.querySelector('.changeRole').value
+      });
+    });
+
+
+    const res = await fetch(`${baseUrl}index.php/notes/share_to_users`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id_note:noteId, users:selectedUsers})
+    });
+    const result = await res.json();
+    if(result.success){
+      showToast('✅ Dokumen berhasil dibagikan.');
+      shareModal.hide();
+    }else{
+      showToast('❌ Gagal menyimpan pembagian dokumen.', false);
+    }
+  });
+});
+</script>
+
+
+
+<!-- ===================== MODAL KONFIRMASI HAPUS  ===================== -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i> Konfirmasi Hapus</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <p>Apakah Anda yakin ingin menghapus dokumen <strong id="docName"></strong>?</p>
+        <p class="text-muted small">Tindakan ini akan menghapus juga semua data bagikan yang terkait.</p>
+      </div>
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Batal</button>
+        <a href="#" id="btnConfirmDelete" class="btn btn-danger rounded-pill">Hapus</a>
       </div>
     </div>
   </div>
@@ -291,84 +463,7 @@
 #sharedUserList .list-group-item { margin-bottom: 5px; }
 </style>
 
-<!-- ===================== SCRIPT BAGIKAN ===================== -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const shareModal = new bootstrap.Modal(document.getElementById('shareModal'));
-  let noteId = null;
-  let sharedUsers = [];
 
-  document.querySelectorAll('.btnShare').forEach(btn => {
-    btn.addEventListener('click', function() {
-      noteId = this.dataset.id;
-      document.getElementById('noteIdToShare').value = noteId;
-      document.getElementById('sharedUserList').innerHTML = `
-        <li class="list-group-item text-muted small text-center">Belum ada pengguna ditambahkan.</li>`;
-      sharedUsers = [];
-      shareModal.show();
-    });
-  });
-
-  document.getElementById('btnAddShare').addEventListener('click', function() {
-    const userSelect = document.getElementById('userSelect');
-    const roleSelect = document.getElementById('roleSelect');
-    const userId = userSelect.value;
-    const userName = userSelect.options[userSelect.selectedIndex].text;
-    const role = roleSelect.value;
-
-    if (!userId) return alert('Pilih pengguna terlebih dahulu.');
-
-    if (!sharedUsers.find(u => u.id == userId)) {
-      sharedUsers.push({ id: userId, name: userName, role });
-      const list = document.getElementById('sharedUserList');
-      if (list.children[0].classList.contains('text-muted')) list.innerHTML = '';
-
-      const li = document.createElement('li');
-      li.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
-      li.innerHTML = `
-        <div><strong>${userName}</strong>
-          <span class="badge bg-${role === 'editor' ? 'primary' : 'secondary'} ms-2 text-uppercase">${role}</span>
-        </div>
-        <button class="btn btn-sm btn-outline-danger btnRemoveUser"><i class="fas fa-times"></i></button>
-      `;
-      li.querySelector('.btnRemoveUser').addEventListener('click', () => {
-        li.remove();
-        sharedUsers = sharedUsers.filter(u => u.id != userId);
-        if (sharedUsers.length === 0) {
-          list.innerHTML = `<li class="list-group-item text-muted small text-center">Belum ada pengguna ditambahkan.</li>`;
-        }
-      });
-      list.appendChild(li);
-    } else {
-      alert('Pengguna ini sudah ditambahkan.');
-    }
-  });
-
-  document.getElementById('btnSaveShare').addEventListener('click', function() {
-    if (sharedUsers.length === 0) return alert('Belum ada pengguna untuk dibagikan.');
-
-    fetch('<?= base_url("notes/share_to_users") ?>', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id_note: noteId,
-        users: sharedUsers
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        alert('Dokumen berhasil dibagikan.');
-        shareModal.hide();
-        location.reload();
-      } else {
-        alert('Gagal menyimpan data: ' + data.message);
-      }
-    })
-    .catch(err => console.error('Error:', err));
-  });
-});
-</script>
 
 <!-- Tooltip Bootstrap -->
 <script>
@@ -379,3 +474,25 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+  const docNameEl = document.getElementById('docName');
+  const confirmBtn = document.getElementById('btnConfirmDelete');
+
+  document.querySelectorAll('.btnDeleteNote').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = this.dataset.id;
+      const name = this.dataset.name;
+      // Isi nama dokumen di modal
+      docNameEl.textContent = `"${name}"`;
+      // Set tautan hapus sesuai ID note
+      confirmBtn.href = `<?= base_url('notes/delete/') ?>${id}`;
+      // Tampilkan modal konfirmasi
+      deleteModal.show();
+    });
+  });
+});
+</script>
+

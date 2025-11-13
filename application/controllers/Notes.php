@@ -10,6 +10,9 @@ class Notes extends CI_Controller {
         $this->load->database();
         $this->load->model('Space_model');
         $this->load->model('Note_model');
+        $this->load->model('View_model');
+
+        
     }
 
     // ==================================================
@@ -269,26 +272,25 @@ private function getSpaceMembers($id_space)
         $name_note = "";
 
         if ($reff_note) {
-        
-            $note = $this->Note_model->get_note_by_reff($reff_note); 
+    $note = $this->Note_model->get_note_by_reff($reff_note);
 
-            $note_id = $note->id_note;
+    if ($note) {
+        $note_id   = $note->id_note ?? "new";
+        $name_note = $note->name_notes ?? "";
+    } else {
+        $note_id   = "new";
+        $name_note = "";
+    }
 
-            $name_note = $note->name_notes;
-
-
-            if ($note && !empty($note->canvas_data_path)) {
-                
-                $absolute_path = FCPATH . $note->canvas_data_path;
-
-                if (file_exists($absolute_path)) {
-
-                    $json_string = file_get_contents($absolute_path);
-                    
-                    $data['restored_canvas_data'] = $json_string;
-                }
-            }
+    if ($note && !empty($note->canvas_data_path)) {
+        $absolute_path = FCPATH . $note->canvas_data_path;
+        if (file_exists($absolute_path)) {
+            $json_string = file_get_contents($absolute_path);
+            $data['restored_canvas_data'] = $json_string;
         }
+    }
+}
+
 
         $data['editable'] = $reff_note;
         $data['note_id'] = $note_id;
@@ -420,22 +422,18 @@ private function getSpaceMembers($id_space)
             $filename .= '.pdf';
         }
 
-        $path = base_url() . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $filename;
-
+        $path = FCPATH . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $filename;
         if (!file_exists($path)) {
             show_error("Gagal memuat PDF. File tidak ditemukan di: " . $path, 404, 'File Tidak Ditemukan');
             return;
         }
-
-        while (ob_get_level()) ob_end_clean();
-
+        
         header('Content-Type: application/pdf');
         header('Content-Disposition: inline; filename="' . basename($filename) . '"');
         header('Content-Length: ' . filesize($path));
-
-        readfile($path);
-        exit;
-    }
+                readfile($path);
+                exit;
+        }
 
 
     // ==================================================
@@ -508,26 +506,19 @@ public function save_pdf_server()
     // ==================================================
     // Hapus Dokumen
     // ==================================================
-    public function delete($id) {
-    $note = $this->db->get_where('notes', ['id_note' => $id])->row_array();
-    $id_user = $this->session->userdata('id');
+    public function delete($id)
+{
+    // Hapus dulu semua data relasi share
+    $this->db->where('id_notes', $id);
+    $this->db->delete('notes_share');
 
-    if ($note && $note['created_by'] == $id_user) {
-        $namafolder = checkSpaceById($note['id_space_note']);
+    // Baru hapus dokumen utamanya
+    $this->db->where('id_note', $id);
+    $this->db->delete('notes');
 
-        // Path baru, masuk ke sketch_pdf
-        $path = FCPATH . 'assets/document/' . $namafolder . '/' . $namafolder . '_sketch/sketch_pdf/' . $note['file_note'];
-
-        if (file_exists($path)) {
-            unlink($path);
-        }
-
-        $this->db->delete('notes', ['id_note' => $id]);
-    } else {
-        show_error('Anda tidak berhak menghapus dokumen ini.', 403, 'Akses Ditolak');
-    }
-
-    redirect('notes/index/' . $this->session->userdata('workspace_sesi'));
+    // Flash message dan redirect
+    $this->session->set_flashdata('flashPj', 'Dokumen berhasil dihapus.');
+    redirect('notes/index/'.$this->session->userdata('workspace_sesi').'/space');
 }
 
 
@@ -605,6 +596,23 @@ public function get_note_owner($id_note)
         echo json_encode(['success' => false, 'message' => 'Owner tidak ditemukan']);
     }
 }
+public function get_note_creator($id_note)
+{
+    $note = $this->db->select('users.id, users.nama')
+        ->from('notes')
+        ->join('users', 'users.id = notes.created_by')
+        ->where('notes.id_note', $id_note)
+        ->get()
+        ->row_array();
+
+    if ($note) {
+        echo json_encode(['success' => true, 'owner' => $note]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Creator tidak ditemukan']);
+    }
+}
+
+
 
     public function share_to_users() {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -842,6 +850,117 @@ private function getUserAccess($id_note, $id_user)
              ->set_content_type('application/json')
              ->set_output(json_encode(['status' => 'success', 'message' => 'Canvas tersimpan!']));
     }
+
+public function view($note_id)
+{
+    $this->load->model('Notes_model');
+
+    // Ambil daftar halaman dari database
+    $data['pages'] = $this->Notes_model->get_pages_by_note_id($note_id);
+
+    // Kirim ke view
+    $this->load->view('view_sketch', $data);
+}
+
+public function view_doc($reff_note)
+{
+    $this->load->model('View_model');
+    $note = $this->View_model->get_note_detail($reff_note);
+
+    if (!$note) {
+        show_error('Dokumen tidak ditemukan.', 404);
+        return;
+    }
+
+    // Nama folder space
+    $namafolder = strtolower(trim(checkSpaceById($note->id_space_note)));
+
+    // Ambil data coretan JSON (kalau ada)
+    $canvas = $this->db->get_where('notes_canvas', ['id_note' => $note->id_note])->row_array();
+
+    // Tentukan waktu update terakhir
+    $note_updated = $note->updated_date ?? null;
+    $canvas_updated = $canvas['updated_at'] ?? null;
+    $last_update = $canvas_updated ? max($note_updated, $canvas_updated) : $note_updated;
+
+    // --- Variabel default ---
+    $pdf_url = null;
+    $load_json_url = null;
+    $is_blank_mode = false;
+    $pages = [];
+
+    // =========================================================
+    // MODE PDF
+    // =========================================================
+    if (!empty($note->file_note)) {
+        $pdf_path = FCPATH . "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_pdf/{$note->file_note}";
+
+        if (file_exists($pdf_path)) {
+            $pdf_url = base_url("assets/document/{$namafolder}/{$namafolder}_sketch/sketch_pdf/{$note->file_note}");
+            $load_json_url = base_url("notes/load_canvas_json/{$note->id_note}");
+            $is_blank_mode = false;
+
+            // Cek apakah ada thumbnail .jpg (jika sudah disiapkan)
+            $thumb_dir = FCPATH . "assets/document/{$namafolder}/{$namafolder}_sketch/sketch_pdf/";
+            if (is_dir($thumb_dir)) {
+                $thumb_files = glob($thumb_dir . "*.jpg");
+                if (!empty($thumb_files)) {
+                    foreach ($thumb_files as $img) {
+                        $pages[] = [
+                            'file_path' => base_url("assets/document/{$namafolder}/{$namafolder}_sketch/sketch_pdf/" . basename($img))
+                        ];
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================
+    // MODE BLANK CANVAS
+    // =========================================================
+    elseif (!empty($note->canvas_data_path) && file_exists(FCPATH . $note->canvas_data_path)) {
+        $is_blank_mode = true;
+        $load_json_url = base_url($note->canvas_data_path);
+        $pages[] = ['file_path' => base_url('assets/img/blank_preview.png')];
+    }
+
+    // =========================================================
+    // Jika tidak ditemukan file PDF atau preview
+    // =========================================================
+    if (empty($pdf_url) && empty($load_json_url)) {
+        show_error("Tidak dapat memuat dokumen.<br><code>{$note->file_note}</code>", 404);
+        return;
+    }
+
+    $data = [
+        'note' => $note,
+        'pdf_url' => $pdf_url,
+        'load_json_url' => $load_json_url,
+        'last_update' => $last_update,
+        'pages' => $pages,
+        'is_blank_mode' => $is_blank_mode
+    ];
+
+    // View sekarang otomatis render thumbnail pakai PDF.js kalau tidak ada .jpg
+    $this->load->view('notes/view_doc', $data);
+}
+
+
+public function get_note_timestamp($id_note)
+{
+    $note = $this->db->select('updated_date')->get_where('notes', ['id_note' => $id_note])->row();
+
+    if (!$note) {
+        echo json_encode(['status' => 'error', 'message' => 'Data tidak ditemukan']);
+        return;
+    }
+
+    echo json_encode([
+        'status' => 'success',
+        'updated_date' => date('d M Y, H:i', strtotime($note->updated_date))
+    ]);
+}
+
 
 
 

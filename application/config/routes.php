@@ -56,3 +56,4 @@ $route['translate_uri_dashes'] = FALSE;
 $route['notes/save_canvas_json/(:num)'] = 'notes/save_canvas_json/$1';
 $route['notes/load_canvas_json/(:num)'] = 'notes/load_canvas_json/$1';
 $route['notes/share_to_users'] = 'notes/share_to_users';
+$route['notes/view_doc/(:num)'] = 'notes/view_doc/$1'; 
